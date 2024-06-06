@@ -342,7 +342,8 @@ def get_layout(dash_data):
 
             ],
             fluid=True,
-            className="dbc"
+            className="dbc",
+            style={"padding-top": "65px"}
 
         ),
         html.Footer(
