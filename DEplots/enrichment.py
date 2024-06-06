@@ -68,6 +68,13 @@ def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
         )
     else:
         raise ValueError(f"mode: {mode} is not valid")
+    categories = df["Description"].unique()
+    y_range = [-0.75, len(categories)]
+
+    # Update the layout to reduce the extra space
+    fig.update_layout(
+        yaxis=dict(range=y_range)
+    )
     fig.update_layout(
         coloraxis_colorbar=dict(
             yanchor="top",

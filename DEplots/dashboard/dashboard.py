@@ -1,6 +1,5 @@
 from DEplots.volcano import volcano_from_deseq_result
-from DEplots.enrichment import enrichment_plot_from_cp_table
-from DEplots.enrichment import enrichment_plot_from_cp_table
+from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure
 import dash
 from dash import html, clientside_callback, Input, Output, Dash, dcc, dash_table, State, Patch
 from dash.exceptions import PreventUpdate
@@ -29,7 +28,7 @@ LAYOUT = {
     "template": "plotly_white",
     'paper_bgcolor': 'rgba(0,0,0,0)',
     'plot_bgcolor': 'rgba(0,0,0,0)',
-    "font": {"color": "black"},
+    "font": {"color": "black", "size": 16},
     "xaxis": {"showline": True, "mirror": True},
     "yaxis": {"showline": True, "mirror": True},
     "margin": {"b": 10, "t": 10}
@@ -103,6 +102,7 @@ def get_table(dash_data):
                             data=df.to_dict('records'),
                             editable=True,
                             filter_action="native",
+                            filter_options={"case": "insensitive"},
                             sort_action="native",
                             sort_mode="multi",
                             column_selectable="single",
@@ -168,12 +168,13 @@ navbar = dbc.Navbar(
                             align="center",
                             className="g-0",
                         ),
-                        width=3
+                        width=3, className="d-md-flex d-none"
                     ),
+                    dbc.Col(html.H2("DESeq Explorer", className="text-md-center"), width=6, align="center",),
 
                     dbc.Col(
                         color_mode_switch,
-                        width=6, className="d-flex align-items-center"
+                        width=3, className="d-flex align-items-center"
                     )
                 ],
                 className="w-100 ", justify="between"
@@ -187,7 +188,8 @@ navbar = dbc.Navbar(
         className="dbc text-light"
 
     ),
-    dark=True, className="bg-primary "
+    color="var(--bs-ufr-navbar)",
+    className="ufr-navbar shadow w-100", style={"position": "fixed", "z-index": "10"}
 )
 
 
@@ -342,6 +344,33 @@ def get_layout(dash_data):
             fluid=True,
             className="dbc"
 
+        ),
+        html.Footer(
+            dbc.Container(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Col(width=3),
+                            dbc.Col(width=3),
+                            dbc.Col(
+                                html.Ul(
+                                    [
+                                        html.Li(html.A(html.I(className="fa-brands fa-2xl fa-github"), target="_blank", href="https://github.com/domonik/DEplots", className="text-light")),
+                                        html.Li(html.A(html.I(className="fa-solid fa-2xl fa-envelope"), target="_blank", href="mailto:rabsch@informatik.uni-freiburg.de", className="text-light")),
+                                        html.Li(html.A(html.I(className="fa-brands fa-2xl fa-linkedin"), target="_blank", href="https://www.linkedin.com/in/dominik-rabsch/", className="text-light"))
+                                    ],
+                                    className="icon-list d-flex align-items-end justify-content-end text-light"
+                                ),
+                                width=3,
+                                align="end"
+                            ),
+                        ],
+                        className="w-100 py-4", justify="between"
+                    )
+                ],
+                fluid=True
+            ),
+            className="ufr-navbar text-light"
         )
     ]
     return layout
@@ -440,7 +469,10 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
     df = get_enrich_result(dataset_key, comp, enrich_type, updown)
     cu = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
     cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
-    fig = enrichment_plot_from_cp_table(df, colorscale=[cu, cd])
+    if df is not None:
+        fig = enrichment_plot_from_cp_table(df, colorscale=[cu, cd])
+    else:
+        fig = empty_figure("No enrichment file found for dataset")
     fig.update_layout(LAYOUT)
     if not switch:
         fig.update_layout(font=dict(color="white"))
@@ -536,6 +568,7 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
 )
 def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enrich_type, updown):
     enrich = get_enrich_result(dataset_key, comp, enrich_type, updown)
+
     if click_data is not None:
         category = click_data["points"][0]["y"]
         sdf = enrich[enrich["Description"] == category].iloc[0]
@@ -613,4 +646,4 @@ def _cli_wrapper(args):
 if __name__ == '__main__':
     config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
 
-    cli_wrapper(config_file)
+    cli_wrapper(config_file, debug=True)

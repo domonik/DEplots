@@ -5,8 +5,19 @@ h5 {
     margin-bottom: .3em !important;
 }
 
+ul.icon-list {
+  list-style-type: none; /* Remove bullet points */
+  padding: 0; /* Remove default padding */
+  margin: 0; /* Remove default margin */
+  display: flex; /* Arrange items in a row */
+}
+
+li {
+    margin: .75em;
+}
+
 .dash-filter--case--sensitive:not(.disabled) {
-	color: var(--accent);
+	color: var(--bs-accent1);
 	opacity: 1!important;
     margin-right: 5px !important;
     margin-left:  5px !important;
@@ -14,8 +25,8 @@ h5 {
 
 
 .form-check-input:checked {
-  background-color: var(--bs-lightblue);
-  border-color: var(--bs-lightblue);
+  background-color: var(--bs-dark);
+  border-color: var(--bs-dark);
 }
 
 body .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
@@ -24,9 +35,7 @@ body .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-in
 	border: none !important;
     padding: 10px 10px 10px 10px;
 }
-table {
-    border-radius: 5px;
-}
+
 
 .column-actions {
     order: 9;
@@ -36,16 +45,16 @@ table {
 
 
 tr:first-of-type th:first-of-type.dash-select-header  {
-  border-top-left-radius: 10px;
+  border-top-left-radius: 5px;
 }
 th:last-of-type.dash-header  {
-  border-top-right-radius: 10px;
+  border-top-right-radius: 5px;
 }
 tr:last-of-type td:first-of-type {
-  border-bottom-left-radius: 10px;
+  border-bottom-left-radius: 5px;
 }
 tr:last-of-type td:last-of-type {
-  border-bottom-right-radius: 10px;
+  border-bottom-right-radius: 5px;
 }
 
 .first-page, .previous-page, .next-page, .last-page {

@@ -7,10 +7,19 @@ def read_files(config_file):
     with open(config_file, "r") as handle:
         config = yaml.safe_load(handle)
 
-    config_files = config["config_files"]
+    if config["run_dir"]:
+        "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/LightRunMinusPuromycin/config.yaml"
+        runs = os.listdir(config["run_dir"])
+        config_files = {run: os.path.join(config["run_dir"], run, "config.yml") for run in runs}
+    else:
+        assert config["config_files"], "No files specified for display"
+        config_files = config["config_files"]
     name_mapping = config["name_mapping"]
-    add_data = config["add_data"]
-    add_data = pd.read_csv(add_data, sep="\t", index_col=0)
+    if config["add_data"]:
+        add_data = config["add_data"]
+        add_data = pd.read_csv(add_data, sep="\t", index_col=0)
+    else:
+        add_data = None
 
     dash_data = {}
     for name, file in config_files.items():
@@ -29,11 +38,11 @@ def read_files(config_file):
                 df = pd.read_csv(comp_file, sep="\t")
                 df["Name"] = df.index
                 df = df[["Name"] + [col for col in df.columns if col != "Name"]]
-
-                df = df.merge(add_data, left_index=True, right_index=True)
+                if add_data is not None:
+                    df = df.merge(add_data, left_index=True, right_index=True)
                 if name_mapping:
-                    cname = name_mapping[condition]
-                    bname = name_mapping[baseline]
+                    cname = name_mapping[condition] if condition in name_mapping else condition
+                    bname = name_mapping[baseline] if baseline in name_mapping else baseline
                 else:
                     cname = condition
                     bname = baseline
@@ -49,15 +58,20 @@ def read_files(config_file):
                                                   f"PipelineData/Enrichment/{enrich}Enrichment_up_c{condition}_vs_b{baseline}.tsv")
                     enrich_file_down = os.path.join(dirname,
                                                     f"PipelineData/Enrichment/{enrich}Enrichment_down_c{condition}_vs_b{baseline}.tsv")
-
-                    assert os.path.isfile(enrich_file_up), f"File {enrich_file_up} not found"
-                    assert os.path.isfile(enrich_file_down), f"File {enrich_file_down} not found"
-
-                    enrich_up = pd.read_csv(enrich_file_up, sep="\t")
-                    enrich_down = pd.read_csv(enrich_file_down, sep="\t")
                     dash_data[name]["comparisons"][comp_str]["enrich"][enrich] = {}
+                    if os.path.isfile(enrich_file_up):
+                        enrich_up = pd.read_csv(enrich_file_up, sep="\t")
+                    else:
+                        enrich_up = None
+                        print(f"File {enrich_file_up} not found")
+                    if os.path.isfile(enrich_file_down):
+                        enrich_down = pd.read_csv(enrich_file_down, sep="\t")
+                    else:
+                        enrich_down = None
+                        print(f"File {enrich_file_down} not found")
                     dash_data[name]["comparisons"][comp_str]["enrich"][enrich][cname] = enrich_up
                     dash_data[name]["comparisons"][comp_str]["enrich"][enrich][bname] = enrich_down
+
     return dash_data
 
 
