@@ -1,0 +1,53 @@
+
+
+h5 {
+    margin-top: .3em !important;
+    margin-bottom: .3em !important;
+}
+
+.dash-filter--case--sensitive:not(.disabled) {
+	color: var(--accent);
+	opacity: 1!important;
+    margin-right: 5px !important;
+    margin-left:  5px !important;
+}
+
+
+.form-check-input:checked {
+  background-color: var(--bs-lightblue);
+  border-color: var(--bs-lightblue);
+}
+
+body .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+	background-color: var(--bs-body-bg);
+	color: var(--bs-body-color);
+	border: none !important;
+    padding: 10px 10px 10px 10px;
+}
+table {
+    border-radius: 5px;
+}
+
+.column-actions {
+    order: 9;
+    margin-left: 10px;
+    margin-right: 5px;
+}
+
+
+tr:first-of-type th:first-of-type.dash-select-header  {
+  border-top-left-radius: 10px;
+}
+th:last-of-type.dash-header  {
+  border-top-right-radius: 10px;
+}
+tr:last-of-type td:first-of-type {
+  border-bottom-left-radius: 10px;
+}
+tr:last-of-type td:last-of-type {
+  border-bottom-right-radius: 10px;
+}
+
+.first-page, .previous-page, .next-page, .last-page {
+    border-radius: 5px;
+}
