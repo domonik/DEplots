@@ -62,9 +62,9 @@ def get_enrich_result(dataset_key, comp, enrich: str = "GO", updown: str = "up-r
 
 color_mode_switch =  dbc.Row(
     [
-        dbc.Col(dbc.Label(className="fa fa-xl fa-moon", html_for="switch"), className="d-flex justify-content-end align-items-center", width=3, md=1),
-        dbc.Col(dbc.Switch( id="switch", value=True, className="ms-3 fs-4", persistence=True, persistence_type="local"), className="d-flex justify-content-center align-items-center", width=3, md=1),
-        dbc.Col(dbc.Label(className="fa fa-xl fa-sun", html_for="switch"), className="d-flex justify-content-start align-items-center", width=3, md=1 ),
+        dbc.Col(html.I(className="fa fa-xl fa-moon", ), className="d-flex justify-content-end align-items-center", width=3, md=1),
+        dbc.Col(dbc.Switch(id="mode-switch", className="ms-3 fs-4", persistence=True), className="d-flex justify-content-center align-items-center", width=3, md=1),
+        dbc.Col(html.I(className="fa fa-xl fa-sun"), className="d-flex justify-content-start align-items-center", width=3, md=1 ),
     ], justify="end", className="w-100"
 )
 PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
@@ -235,14 +235,15 @@ def get_dataset_card(dash_data):
     return dataset_card
 
 def get_layout(dash_data):
-    layout = [
+    layout = html.Div([
         navbar,
         dcc.Store(data={}, id="volcano-highlight-ids"),
         dcc.Store(id="enrich-term"),
         dbc.Container(
             [
                 dbc.Row(
-                    get_dataset_card(dash_data)
+                    get_dataset_card(dash_data),
+                    className="py-1"
                 ),
                 dbc.Row(
                     [
@@ -326,7 +327,7 @@ def get_layout(dash_data):
                             width=12, md=6
                         )
                     ],
-                    className="my-2"
+                    className="py-1"
                 ),
                 dbc.Row(
                     [
@@ -337,7 +338,7 @@ def get_layout(dash_data):
 
                     ],
 
-                    className="my-2",
+                    className="py-1",
                 )
 
             ],
@@ -371,9 +372,9 @@ def get_layout(dash_data):
                 ],
                 fluid=True
             ),
-            className="ufr-navbar text-light"
+            className="ufr-navbar text-light mt-4", style={"z-index": "20"}
         )
-    ]
+    ])
     return layout
 
 
@@ -461,7 +462,7 @@ def add_selected_rows(selected_rows, highlight_data, dataset_key, comp):
     Input("comparison-dd", "value"),
     Input("enrich-type-dd", "value"),
     Input("enrich-updown-dd", "value"),
-    Input("switch", "value"),
+    Input("mode-switch", "value"),
 
     prevent_initial_call=False
 )
@@ -523,7 +524,7 @@ def update_volcano_column_selections(comp, dataset_key, current_add_name):
     State('dataset-dd', 'value'),
     State('comparison-dd', 'value'),
     State('enrich-term', 'data'),
-    State("switch", "value"),
+    State("mode-switch", "value"),
 
 )
 def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, switch):
@@ -589,7 +590,7 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 
 @app.callback(
     Output("volcano-graph", "figure", allow_duplicate=True),
-    Input("switch", "value"),
+    Input("mode-switch", "value"),
     State("volcano-graph", "figure"),
     State("enrichment-graph", "figure"),
 
@@ -620,8 +621,8 @@ clientside_callback(
        return window.dash_clientside.no_update
     }
     """,
-    Output("switch", "id"),
-    Input("switch", "value"),
+    Output("mode-switch", "id"),
+    Input("mode-switch", "value"),
 )
 
 
