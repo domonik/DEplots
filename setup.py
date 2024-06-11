@@ -21,7 +21,7 @@ setup(
     long_description_content_type="text/markdown",
     include_package_data=True,
     package_data={
-        "DEplots.dashboard": ["assets/*"],
+        "DEplots.dashboard": ["assets/*", "default_config.yaml"],
     },
     install_requires=[
         "numpy",
