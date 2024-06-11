@@ -6,7 +6,7 @@ from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import pandas as pd
 import os
-from DEplots.dashboard import read_files
+from DEplots.dashboard import get_data
 from dash.dash_table.Format import Format, Scheme, Trim
 from pandas.api.types import is_numeric_dtype
 
@@ -628,24 +628,26 @@ clientside_callback(
 
 def cli_wrapper(
         config_file: str = None,
+        run_dir: str = None,
         debug: bool = False,
         port: int = 8080,
         host: str = "127.0.0.1",
         processes: int = 1
 ):
     global DASH_DATA
-    DASH_DATA = read_files(config_file)
+    DASH_DATA = get_data(config_file, run_dir)
 
     app.layout = get_layout(dash_data=DASH_DATA)
     app.run(debug=debug, port=port, host=host, processes=processes, threaded=False)
 
 
 def _cli_wrapper(args):
-    cli_wrapper(args.config, args.debug, args.port, args.host, args.processes)
+    cli_wrapper(args.config, args.run_dir, args.debug, args.port, args.host, args.processes)
 
 
 
 if __name__ == '__main__':
-    config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
+    #config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
+    rd = "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/"
 
-    cli_wrapper(config_file, debug=True)
+    cli_wrapper(config_file=None, run_dir=rd, debug=True)

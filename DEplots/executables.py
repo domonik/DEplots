@@ -11,7 +11,12 @@ def _dash_parser(subparsers, name):
         '--config',
         type=str,
         help="Path to the config file containing configuration for dash app",
-        required=True,
+        default=None
+    )
+    parser.add_argument(
+        '--run-dir',
+        type=str,
+        help="Path to the config file containing configuration for dash app",
         default=None
     )
     parser.add_argument(
@@ -60,6 +65,8 @@ class DEPlots:
 
     def parse_args(self):
         args = self.parser.parse_args()
+        if not (args.config or args.run_dir):
+            self.parser.error('At least one of --config or --run-dir must be specified')
         return args
 
     def run(self):

@@ -3,12 +3,22 @@ import os
 import pandas as pd
 
 
-def read_files(config_file):
+DIRPATH = os.path.dirname(os.path.abspath(__file__))
+
+
+def get_data( config_file: str = None, run_dir: str = None,):
+    if config_file is None:
+        config_file = os.path.join(DIRPATH, "default_config.yaml")
     with open(config_file, "r") as handle:
         config = yaml.safe_load(handle)
 
+    if run_dir:
+        config["run_dir"] = run_dir
+    return read_files(config)
+
+
+def read_files(config):
     if config["run_dir"]:
-        "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/LightRunMinusPuromycin/config.yaml"
         runs = os.listdir(config["run_dir"])
         config_files = {run: os.path.join(config["run_dir"], run, "config.yml") for run in runs}
     else:
