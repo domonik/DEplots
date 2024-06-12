@@ -289,14 +289,15 @@ def get_layout(dash_data):
                                                     dbc.Col(dcc.Dropdown(
                                                         value="GO",
                                                         options=["GO", "KEGG"],
-                                                        style={"width": "100%"},
+                                                        style={"width": "100%", "font-size": "1.25rem"},
                                                         id="enrich-type-dd",
-                                                        clearable=False
+                                                        clearable=False,
 
-                                                    ), width=3, className="d-flex align-items-center",
-                                                        style={"font-weight": "bold"}),
-                                                    dbc.Col(html.H5("Enrichment"), width=6,
-                                                            className="d-flex align-items-center"),
+
+                                                    ), width=3, className="d-flex align-items-center ",
+                                                    ),
+                                                    dbc.Col(html.H5("Enrichment"), width=3,
+                                                            className="d-flex align-items-center justify-content-center"),
                                                     dbc.Col(dcc.Dropdown(
                                                         value="up-regulated",
                                                         options=["up-regulated", "down-regulated"],
@@ -305,7 +306,17 @@ def get_layout(dash_data):
                                                         clearable=False
 
                                                     ), width=3, className="d-flex align-items-center",
-                                                        style={"font-weight": "bold"}),
+                                                        style={"font-size": "1.25rem"}),
+                                                    dbc.Col(
+                                                        dbc.Button(
+                                                            "Reset Selection",
+                                                            disabled=True,
+                                                            id="reset-enrich-selection"
+
+                                                        ),
+                                                        width=3,
+                                                        className="d-flex align-items-center justify-content-end"
+                                                    ),
 
                                                 ]
 
@@ -558,8 +569,22 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
 
 
 @app.callback(
+    Output('reset-enrich-selection', 'disabled', allow_duplicate=True),
+    Output('volcano-highlight-ids', 'data', allow_duplicate=True),
+    Input('reset-enrich-selection', 'n_clicks'),
+    State('volcano-highlight-ids', 'data'),
+
+)
+def reset_enrich_selection(n_clicks, current_data):
+    del current_data["enriched"]
+    del current_data["not-enriched"]
+    return True, current_data
+
+
+@app.callback(
     Output('volcano-highlight-ids', 'data', allow_duplicate=True),
     Output('enrich-term', 'data', allow_duplicate=True),
+    Output('reset-enrich-selection', 'disabled'),
     Input("enrichment-graph", "clickData"),
     State('volcano-highlight-ids', 'data'),
     State('dataset-dd', 'value'),
@@ -582,7 +607,7 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 
         current_data["enriched"] = list(ids)
         print("CD", current_data)
-        return current_data, category
+        return current_data, category, False
     raise PreventUpdate
 
 
@@ -647,7 +672,7 @@ def _cli_wrapper(args):
 
 
 if __name__ == '__main__':
-    #config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
+    config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
     rd = "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/"
 
-    cli_wrapper(config_file=None, run_dir=rd, debug=True)
+    cli_wrapper(config_file=config_file, run_dir=rd, debug=True)
