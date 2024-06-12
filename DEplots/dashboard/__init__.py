@@ -82,6 +82,21 @@ def read_files(config):
                     dash_data[name]["comparisons"][comp_str]["enrich"][enrich][cname] = enrich_up
                     dash_data[name]["comparisons"][comp_str]["enrich"][enrich][bname] = enrich_down
 
+                gsea_file = os.path.join(
+                    dirname,
+                    f"PipelineData/Enrichment/GSEAGO_c{condition}_vs_b{baseline}.tsv"
+                )
+                gsea_plot_data = os.path.join(
+                    dirname,
+                    f"PipelineData/Enrichment/GSEAGO_plot_data_c{condition}_vs_b{baseline}.tsv"
+                )
+                if os.path.isfile(gsea_file) and os.path.isfile(gsea_plot_data):
+                    gsea_plot_data = pd.read_csv(gsea_plot_data, sep="\t")
+                    gsea_file = pd.read_csv(gsea_file, sep="\t")
+                    gsea_file = gsea_file.drop("core_enrichment", axis=1)
+                    dash_data[name]["comparisons"][comp_str]["gsea"] = {}
+                    dash_data[name]["comparisons"][comp_str]["gsea"]["plot_data"] = gsea_plot_data
+                    dash_data[name]["comparisons"][comp_str]["gsea"]["df"] = gsea_file
+
+
     return dash_data
-
-

@@ -1,5 +1,5 @@
 from DEplots.volcano import volcano_from_deseq_result
-from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure
+from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
 import dash
 from dash import html, clientside_callback, Input, Output, Dash, dcc, dash_table, State, Patch
 from dash.exceptions import PreventUpdate
@@ -9,6 +9,7 @@ import os
 from DEplots.dashboard import get_data
 from dash.dash_table.Format import Format, Scheme, Trim
 from pandas.api.types import is_numeric_dtype
+import plotly.express as px
 
 
 FILEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +24,9 @@ DEFAULT_PLOTLY_COLORS = {
     "placeholder2": "#f5c2ed"
 
 }
+DEFAULT_PLOTLY_COLORS_LIST = list(DEFAULT_PLOTLY_COLORS.values()) + px.colors.DEFAULT_PLOTLY_COLORS
+
+
 
 LAYOUT = {
     "template": "plotly_white",
@@ -57,6 +61,11 @@ def get_deseq_result(dataset_key, comp):
 def get_enrich_result(dataset_key, comp, enrich: str = "GO", updown: str = "up-regulated"):
     df = DASH_DATA[dataset_key]["comparisons"][comp]["enrich"][enrich][updown]
     return df
+
+def get_gsea_result(dataset_key, comp):
+    df = DASH_DATA[dataset_key]["comparisons"][comp]["gsea"]["df"]
+    plot_data = DASH_DATA[dataset_key]["comparisons"][comp]["gsea"]["plot_data"]
+    return df, plot_data
 
 
 
@@ -155,6 +164,86 @@ def get_table(dash_data):
     return table
 
 
+def get_gsea_table(dash_data):
+    d = list(dash_data.keys())[0]
+    data = dash_data[d]
+    comp = list(data["comparisons"].keys())[0]
+    df, _ = get_gsea_result(d, comp)
+    table = dbc.Card(
+        [
+            dbc.CardHeader(
+                dbc.Row(
+                    [
+                        dbc.Col(html.H5("GSEA table"), width=6, align="center"),
+                    ],
+                    justify="between"
+                ),
+
+            ),
+            dbc.Row(
+                [
+
+                    dbc.Col(
+                        dash_table.DataTable(
+                            id='gsea-table',
+                            columns=[
+                                {"name": i, "id": i, "deletable": False, "selectable": False} for i in df.columns
+                            ],
+                            data=df.to_dict('records'),
+                            editable=True,
+                            filter_action="native",
+                            filter_options={"case": "insensitive"},
+                            sort_action="native",
+                            sort_mode="multi",
+                            column_selectable="single",
+                            row_selectable="multi",
+                            row_deletable=False,
+                            selected_columns=[],
+                            selected_rows=[],
+                            page_action="native",
+                            page_current=0,
+                            page_size=10,
+                            style_as_list_view=True,
+                            style_data_conditional=[
+                                {
+                                    'if': {'row_index': 'odd'},
+                                    'backgroundColor': 'var(--bs-secondary-bg)',
+                                },
+                                {
+                                    'if': {'row_index': 'even'},
+                                    'backgroundColor': 'var(--bs-tertiary-bg)',
+                                },
+
+                            ],
+                            style_header={
+                                'backgroundColor': 'var(--bs-secondary-bg)',
+                                'fontWeight': 'bold',
+                                "border": "none"
+                            },
+                            style_filter={
+                                'backgroundColor': 'var(--bs-secondary-bg)',
+                                'fontWeight': 'bold',
+                                "border": "none !important"
+
+                            },
+                            style_data={'border': 'none !important'}
+                        ),
+                        width=12, style={"overflow": "auto", 'backgroundColor': 'var(--bs-primary-bg)'},
+                    )
+
+                ],
+                justify="center", className="m-2"
+
+            )
+
+        ],
+        className="shadow"
+
+
+
+    )
+    return table
+
 navbar = dbc.Navbar(
     dbc.Container(
         [
@@ -233,6 +322,33 @@ def get_dataset_card(dash_data):
 
     )
     return dataset_card
+
+
+
+def get_gsea_box():
+    gsea_box = dbc.Col(
+        dbc.Card(
+            [
+                dbc.CardHeader(
+                    dbc.Row(
+                        [
+                            dbc.Col(html.H5("GSEA"), width=6),
+                        ]
+
+                    ),
+
+                ),
+                dbc.Col(dcc.Graph(id="gsea-graph", ), width=12,
+
+                        ),
+
+            ],
+            className="shadow",
+        ),
+        width=12
+    )
+    return gsea_box
+
 
 def get_layout(dash_data):
     layout = html.Div([
@@ -350,7 +466,26 @@ def get_layout(dash_data):
                     ],
 
                     className="py-1",
-                )
+                ),
+                dbc.Row(
+                    [
+                            get_gsea_box(),
+
+                    ],
+
+                    className="py-1",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            get_gsea_table(dash_data),
+                            width=12,
+                        ),
+
+                    ],
+
+                    className="py-1",
+                ),
 
             ],
             fluid=True,
@@ -416,6 +551,30 @@ def select_all(select_n_clicks, deselect_n_clicks, original_rows, filtered_rows,
 
 
 @app.callback(
+    Output('gsea-graph', 'figure'),
+    Input('gsea-table', 'selected_rows'),
+    State('dataset-dd', 'value'),
+    State('comparison-dd', 'value'),
+    State('mode-switch', 'value'),
+    prevent_initial_call=False
+)
+def get_gsea_plot(selected_rows, dataset_key, comp, switch):
+    print("Started to get GSEA")
+    df, plot_data = get_gsea_result(dataset_key, comp)
+    descs = df["Description"].iloc[selected_rows]
+    fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST)
+    fig.update_layout(LAYOUT)
+    fig.update_xaxes(showgrid=False, zeroline=False, showline=True, layer="above traces")
+    fig.update_yaxes(showgrid=False, zeroline=False, showline=True, mirror=True)
+    if not switch:
+        fig.update_layout(font=dict(color="white"))
+    print("Got GSEA")
+    return fig
+
+
+
+
+@app.callback(
     Output("deseq-table", "data"),
     Output("deseq-table", "columns"),
     Output('volcano-highlight-ids', 'data'),
@@ -450,6 +609,41 @@ def update_table_from_dataset(dataset_key, comp):
 
     data = df.to_dict('records')
     return data, columns, {}
+
+
+@app.callback(
+    Output("gsea-table", "data"),
+    Output("gsea-table", "columns"),
+    Output('gsea-table', 'selected_rows'),
+    Input('dataset-dd', 'value'),
+    Input('comparison-dd', 'value'),
+    prevent_initial_call=False
+)
+def update_table_from_dataset(dataset_key, comp):
+    df, _ = get_gsea_result(dataset_key, comp)
+    columns = []
+    for i in df.columns:
+        numeric = is_numeric_dtype(df[i])
+        if numeric:
+            dtype = "numeric"
+            if i in ("pvalue", "padj"):
+                format = Format(precision=2, scheme=Scheme.exponent)
+            else:
+                format = Format(precision=4)
+        else:
+            dtype = "text"
+            format = None
+        d = dict(
+            name=i,
+            id=i,
+            deletable=False,
+            selectable=False,
+            type=dtype,
+            format=format
+        )
+        columns.append(d)
+    data = df.to_dict('records')
+    return data, columns, list(range(min(len(df), 3)))
 
 
 @app.callback(
@@ -615,13 +809,13 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 
 @app.callback(
     Output("volcano-graph", "figure", allow_duplicate=True),
+    Output("gsea-graph", "figure", allow_duplicate=True),
     Input("mode-switch", "value"),
     State("volcano-graph", "figure"),
-    State("enrichment-graph", "figure"),
+    State("gsea-graph", "figure"),
 
 )
 def patch_all_figures_style(switch_value, f1, f2):
-    print(switch_value)
     upc = UP_COLOR_LIGHT if switch_value else UP_COLOR_DARK
     downc = DOWN_COLOR_LIGHT if switch_value else DOWN_COLOR_DARK
     patched_volcano = Patch()
@@ -634,8 +828,12 @@ def patch_all_figures_style(switch_value, f1, f2):
     patched_volcano["layout"]["shapes"][1]["opacity"] = 0.1 if switch_value else 0.25
     patched_volcano["layout"]["annotations"][1]["font"]["color"] = downc
 
+    patched_gsea = Patch()
+    patched_gsea['layout']['font']['color'] = "black" if switch_value else "white"
 
-    return patched_volcano if f1 is not None else dash.no_update
+
+
+    return patched_volcano if f1 is not None else dash.no_update, patched_gsea if f2 is not None else dash.no_update
 
 
 
@@ -675,4 +873,4 @@ if __name__ == '__main__':
     config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
     rd = "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/"
 
-    cli_wrapper(config_file=config_file, run_dir=rd, debug=True)
+    cli_wrapper(config_file=config_file, run_dir=rd, debug=True, processes=3)
