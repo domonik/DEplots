@@ -33,10 +33,21 @@ LAYOUT = {
     'paper_bgcolor': 'rgba(0,0,0,0)',
     'plot_bgcolor': 'rgba(0,0,0,0)',
     "font": {"color": "black", "size": 16},
-    "xaxis": {"showline": True, "mirror": True},
-    "yaxis": {"showline": True, "mirror": True},
+    "xaxis": {"showline": True, "mirror": True, "linecolor": "black"},
+    "yaxis": {"showline": True, "mirror": True, "linecolor": "black"},
     "margin": {"b": 10, "t": 10}
 }
+
+DARK_LAYOUT = {
+    "template": "plotly_white",
+    'paper_bgcolor': 'rgba(0,0,0,0)',
+    'plot_bgcolor': 'rgba(0,0,0,0)',
+    "font": {"color": "white", "size": 16},
+    "xaxis": {"showline": True, "mirror": True, "linecolor": "white"},
+    "yaxis": {"showline": True, "mirror": True, "linecolor": "white"},
+    "margin": {"b": 10, "t": 10}
+}
+
 
 UP_COLOR_LIGHT = "#00a082"
 UP_COLOR_DARK = "#00a082"
@@ -553,22 +564,31 @@ def select_all(select_n_clicks, deselect_n_clicks, original_rows, filtered_rows,
 @app.callback(
     Output('gsea-graph', 'figure'),
     Input('gsea-table', 'selected_rows'),
+    Input('mode-switch', 'value'),
+
     State('dataset-dd', 'value'),
     State('comparison-dd', 'value'),
-    State('mode-switch', 'value'),
     prevent_initial_call=False
 )
-def get_gsea_plot(selected_rows, dataset_key, comp, switch):
-    print("Started to get GSEA")
+def get_gsea_plot(selected_rows, switch, dataset_key, comp):
     df, plot_data = get_gsea_result(dataset_key, comp)
     descs = df["Description"].iloc[selected_rows]
-    fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST)
-    fig.update_layout(LAYOUT)
-    fig.update_xaxes(showgrid=False, zeroline=False, showline=True, layer="above traces")
-    fig.update_yaxes(showgrid=False, zeroline=False, showline=True, mirror=True)
+    if df is not None and len(df) > 0:
+        fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST)
+    elif df is None:
+        fig = empty_figure("No GSEA file found for dataset")
+    else:
+        fig = empty_figure("Nothing enriched in this dataset")
+
     if not switch:
-        fig.update_layout(font=dict(color="white"))
-    print("Got GSEA")
+        fig.update_layout(DARK_LAYOUT)
+        linecolor = "white"
+    else:
+        fig.update_layout(LAYOUT)
+        linecolor = "black"
+    fig.update_xaxes(showgrid=False, zeroline=False, showline=True, layer="above traces", linecolor=linecolor)
+    fig.update_yaxes(showgrid=False, zeroline=False, showline=True, mirror=True, linecolor=linecolor)
+
     return fig
 
 
@@ -680,9 +700,11 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
         fig = enrichment_plot_from_cp_table(df, colorscale=[cu, cd])
     else:
         fig = empty_figure("No enrichment file found for dataset")
-    fig.update_layout(LAYOUT)
     if not switch:
-        fig.update_layout(font=dict(color="white"))
+        fig.update_layout(DARK_LAYOUT)
+    else:
+        fig.update_layout(LAYOUT)
+
     return fig
 
 
@@ -756,9 +778,11 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
         fig.update_traces(selector=dict(name='not-enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term))
         fig.update_traces(selector=dict(name='enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term))
     fig.update_traces(selector=dict(name='Selected'), legendgroup="Table", legendgrouptitle=dict(text="Table"))
-    fig.update_layout(LAYOUT)
     if not switch:
-        fig.update_layout(font=dict(color="white"))
+        fig.update_layout(DARK_LAYOUT)
+    else:
+        fig.update_layout(LAYOUT)
+
     return fig
 
 
@@ -809,7 +833,6 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 
 @app.callback(
     Output("volcano-graph", "figure", allow_duplicate=True),
-    Output("gsea-graph", "figure", allow_duplicate=True),
     Input("mode-switch", "value"),
     State("volcano-graph", "figure"),
     State("gsea-graph", "figure"),
@@ -818,8 +841,11 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 def patch_all_figures_style(switch_value, f1, f2):
     upc = UP_COLOR_LIGHT if switch_value else UP_COLOR_DARK
     downc = DOWN_COLOR_LIGHT if switch_value else DOWN_COLOR_DARK
+    font_color = "black" if switch_value else "white"
     patched_volcano = Patch()
-    patched_volcano['layout']['font']['color'] = "black" if switch_value else "white"
+    patched_volcano['layout']['font']['color'] = font_color
+    patched_volcano['layout']['xaxis']['linecolor'] = font_color
+    patched_volcano['layout']['yaxis']['linecolor'] = font_color
     patched_volcano["layout"]["shapes"][0]["fillcolor"] = upc
     patched_volcano["layout"]["shapes"][0]["opacity"] = 0.1 if switch_value else 0.25
     patched_volcano["layout"]["annotations"][0]["font"]["color"] = upc
@@ -828,12 +854,7 @@ def patch_all_figures_style(switch_value, f1, f2):
     patched_volcano["layout"]["shapes"][1]["opacity"] = 0.1 if switch_value else 0.25
     patched_volcano["layout"]["annotations"][1]["font"]["color"] = downc
 
-    patched_gsea = Patch()
-    patched_gsea['layout']['font']['color'] = "black" if switch_value else "white"
-
-
-
-    return patched_volcano if f1 is not None else dash.no_update, patched_gsea if f2 is not None else dash.no_update
+    return patched_volcano if f1 is not None else dash.no_update
 
 
 
