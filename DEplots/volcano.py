@@ -19,7 +19,7 @@ def volcano_from_deseq_result(
     hovertemplate = '<i>Y</i>: %{y:.2f}' + \
                     '<br><b>X</b>: %{x}<br>' + \
                     '<b>%{text}</b>'
-    df = deseq_result
+    df = deseq_result[~pd.isna(deseq_result.padj)]
     df["-log10padj"] = -1 * np.log10(df["padj"])
     max_log10padj = np.ceil(df["-log10padj"].max())
     min_fc = np.floor(df["log2FoldChange"].min())

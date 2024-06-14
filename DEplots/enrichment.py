@@ -93,12 +93,25 @@ def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
     return fig
 
 
-def plot_gsea(df: pd.DataFrame, info: pd.DataFrame = None, descs = None, colors=px.colors.DEFAULT_PLOTLY_COLORS):
+def plot_gsea(
+        df: pd.DataFrame,
+        info: pd.DataFrame = None,
+        descs=None, colors=px.colors.DEFAULT_PLOTLY_COLORS,
+        show_zero_lfc: bool = False,
+        condition_name: str = None,
+        base_name: str = None,
+        gene_list_name: str = None
+
+):
+    if gene_list_name:
+        df = df.rename({"geneList": gene_list_name}, axis=1)
+    else:
+        gene_list_name = "geneList"
     if info is not None:
         df = df.merge(info, left_on="Description", right_on="Description")
-        hover_data = ["p.adjust"]
+        hover_data = ["p.adjust", gene_list_name]
     else:
-        hover_data = None
+        hover_data = [gene_list_name]
     if descs is None:
         descs = df["Description"].unique()
     d = descs
@@ -116,6 +129,12 @@ def plot_gsea(df: pd.DataFrame, info: pd.DataFrame = None, descs = None, colors=
         row_heights=[0.6] + [0.4 / to_display for _ in range(to_display)]
     )
     df[df["position"] == 0]["position"] = np.nan
+    check = df[df[gene_list_name] == 0]
+    if len(check) > 0:
+        pos = check["x"].mean()
+    else:
+        pos = (df[df[gene_list_name] > 0]["x"].max() * 2 + 1) / 2
+
     for idx, data in enumerate(fig_old.data):
         if idx < len(colors):
             data.update(marker=dict(color=colors[idx]), line=dict(color=colors[idx]))
@@ -137,7 +156,40 @@ def plot_gsea(df: pd.DataFrame, info: pd.DataFrame = None, descs = None, colors=
                 ),
                 row=idx + 1, col=1
             )
+            if show_zero_lfc:
+                fig.add_vline(x=pos, line_dash="dot", row=idx+1)
+
             fig.update_yaxes(range=[0, 1], row=idx+1, showticklabels=False)
+
+    if show_zero_lfc:
+
+        fig.add_vline(
+            x=pos,
+            annotation=dict(text="0 L2FC"), row=1,
+            line_dash="dot"
+        )
+    if condition_name:
+        fig.add_annotation(
+            text=condition_name,
+            showarrow=False,
+            xref="x domain",
+            xanchor="left",
+            yanchor="top",
+            yref="y domain",
+            x=0,
+            y=1
+        )
+    if base_name:
+        fig.add_annotation(
+            text=base_name,
+            showarrow=False,
+            xref="x domain",
+            xanchor="right",
+            yanchor="top",
+            yref="y domain",
+            x=1,
+            y=1
+        )
     fig.update_xaxes(title_text="Position in ranked dataset", row=len(d)+1)
     fig.update_yaxes(title_text="Running enrichment score", row=1)
     return fig
@@ -147,5 +199,5 @@ if __name__ == '__main__':
     file2 = "../../RlocSeq/Pipeline/RUNS/LightDark_DarkOnly/PipelineData/Enrichment/GSEAGO_cM_vs_bC.tsv"
     df = pd.read_csv(file, sep="\t")
     idx =pd.read_csv(file2, sep="\t")
-    fig = plot_gsea(df, idx)
+    fig = plot_gsea(df, idx, show_zero_lfc=True, condition_name="FOOO")
     fig.show()

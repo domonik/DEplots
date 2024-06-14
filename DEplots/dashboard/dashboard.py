@@ -573,8 +573,10 @@ def select_all(select_n_clicks, deselect_n_clicks, original_rows, filtered_rows,
 def get_gsea_plot(selected_rows, switch, dataset_key, comp):
     df, plot_data = get_gsea_result(dataset_key, comp)
     descs = df["Description"].iloc[selected_rows]
+    cond = DASH_DATA[dataset_key]["comparisons"][comp]["condition"]
+    baseline = DASH_DATA[dataset_key]["comparisons"][comp]["baseline"]
     if df is not None and len(df) > 0:
-        fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST)
+        fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST, show_zero_lfc=True, condition_name=cond, base_name=baseline, gene_list_name="log2FC")
     elif df is None:
         fig = empty_figure("No GSEA file found for dataset")
     else:
@@ -586,6 +588,10 @@ def get_gsea_plot(selected_rows, switch, dataset_key, comp):
     else:
         fig.update_layout(LAYOUT)
         linecolor = "black"
+    fig.update_shapes(line=dict(color=linecolor))
+
+
+
     fig.update_xaxes(showgrid=False, zeroline=False, showline=True, layer="above traces", linecolor=linecolor)
     fig.update_yaxes(showgrid=False, zeroline=False, showline=True, mirror=True, linecolor=linecolor)
 
