@@ -1,93 +1,36 @@
 from DEplots.volcano import volcano_from_deseq_result
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
 import dash
-from dash import html, clientside_callback, Input, Output, Dash, dcc, dash_table, State, Patch
+from dash import callback, html, clientside_callback, Input, Output, dcc, dash_table, State, Patch
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
-import pandas as pd
-import os
-from DEplots.dashboard import get_data
-from dash.dash_table.Format import Format, Scheme, Trim
+from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
-import plotly.express as px
+from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
+    UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, DASH_DATA
+import pandas as pd
 
-
-FILEDIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(FILEDIR, "assets")
-assert os.path.exists(ASSETS_DIR)
-
-DEFAULT_PLOTLY_COLORS = {
-    "not-enriched": "#344A9A",
-    "enriched": "#00a082",
-    "Selected": "#8f6b30",
-    "placeholder": "#ffe863",
-    "placeholder2": "#f5c2ed"
-
-}
-DEFAULT_PLOTLY_COLORS_LIST = list(DEFAULT_PLOTLY_COLORS.values()) + px.colors.DEFAULT_PLOTLY_COLORS
-
-
-
-LAYOUT = {
-    "template": "plotly_white",
-    'paper_bgcolor': 'rgba(0,0,0,0)',
-    'plot_bgcolor': 'rgba(0,0,0,0)',
-    "font": {"color": "black", "size": 16},
-    "xaxis": {"showline": True, "mirror": True, "linecolor": "black"},
-    "yaxis": {"showline": True, "mirror": True, "linecolor": "black"},
-    "margin": {"b": 10, "t": 10}
-}
-
-DARK_LAYOUT = {
-    "template": "plotly_white",
-    'paper_bgcolor': 'rgba(0,0,0,0)',
-    'plot_bgcolor': 'rgba(0,0,0,0)',
-    "font": {"color": "white", "size": 16},
-    "xaxis": {"showline": True, "mirror": True, "linecolor": "white"},
-    "yaxis": {"showline": True, "mirror": True, "linecolor": "white"},
-    "margin": {"b": 10, "t": 10}
-}
-
-
-UP_COLOR_LIGHT = "#00a082"
-UP_COLOR_DARK = "#00a082"
-DOWN_COLOR_LIGHT = "#344A9A"
-DOWN_COLOR_DARK = "#f5c2ed"
-
-dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
-
-app = Dash(
-    __name__,
-    external_stylesheets=["custom.css", dbc.icons.FONT_AWESOME, dbc_css],
-    assets_folder=ASSETS_DIR,
-    prevent_initial_callbacks=True
-)
+dash.register_page(__name__, path='/analysis')
 
 
 def get_deseq_result(dataset_key, comp):
-    df = DASH_DATA[dataset_key]["comparisons"][comp]["deseq"]
-    return df
+    df = DASH_DATA[1][comp]
+    idx = pd.IndexSlice
+    df1_columns = df.loc[:, idx[["Name", "Additional Data", dataset_key], :]]
+    df1_columns.columns = df1_columns.columns.droplevel(0)
+    return df1_columns
 
 
 def get_enrich_result(dataset_key, comp, enrich: str = "GO", updown: str = "up-regulated"):
-    df = DASH_DATA[dataset_key]["comparisons"][comp]["enrich"][enrich][updown]
+    df = DASH_DATA[0][dataset_key]["comparisons"][comp]["enrich"][enrich][updown]
     return df
 
 def get_gsea_result(dataset_key, comp):
-    df = DASH_DATA[dataset_key]["comparisons"][comp]["gsea"]["df"]
-    plot_data = DASH_DATA[dataset_key]["comparisons"][comp]["gsea"]["plot_data"]
+    df = DASH_DATA[0][dataset_key]["comparisons"][comp]["gsea"]["df"]
+    plot_data = DASH_DATA[0][dataset_key]["comparisons"][comp]["gsea"]["plot_data"]
     return df, plot_data
 
 
-
-color_mode_switch =  dbc.Row(
-    [
-        dbc.Col(html.I(className="fa fa-xl fa-moon", ), className="d-flex justify-content-end align-items-center", width=3, md=1),
-        dbc.Col(dbc.Switch(id="mode-switch", className="ms-3 fs-4", persistence=True), className="d-flex justify-content-center align-items-center", width=3, md=1),
-        dbc.Col(html.I(className="fa fa-xl fa-sun"), className="d-flex justify-content-start align-items-center", width=3, md=1 ),
-    ], justify="end", className="w-100"
-)
-PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 
 
 def get_table(dash_data):
@@ -95,6 +38,7 @@ def get_table(dash_data):
     data = dash_data[d]
     comp = list(data["comparisons"].keys())[0]
     df = get_deseq_result(d, comp)
+
     table = dbc.Card(
         [
             dbc.CardHeader(
@@ -116,16 +60,15 @@ def get_table(dash_data):
                     dbc.Col(
                         dash_table.DataTable(
                             id='deseq-table',
-                            columns=[
-                                {"name": i, "id": i, "deletable": False, "selectable": False} for i in df.columns
-                            ],
-                            data=df.to_dict('records'),
+                            columns=None,
+                            data=None,
                             editable=True,
                             filter_action="native",
                             filter_options={"case": "insensitive"},
                             sort_action="native",
                             sort_mode="multi",
                             column_selectable="single",
+                            merge_duplicate_headers=True,
                             row_selectable="multi",
                             row_deletable=False,
                             selected_columns=[],
@@ -255,42 +198,7 @@ def get_gsea_table(dash_data):
     )
     return table
 
-navbar = dbc.Navbar(
-    dbc.Container(
-        [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.Row(
-                            [
-                                dbc.Col(html.Img(src="https://cd.uni-freiburg.de/wp-content/uploads/2022/09/ufr-logo-white-2.png", height="50px")),
-                            ],
-                            align="center",
-                            className="g-0",
-                        ),
-                        width=3, className="d-md-flex d-none"
-                    ),
-                    dbc.Col(html.H2("DESeq Explorer", className="text-md-center"), width=6, align="center",),
 
-                    dbc.Col(
-                        color_mode_switch,
-                        width=3, className="d-flex align-items-center"
-                    )
-                ],
-                className="w-100 ", justify="between"
-
-            ),
-
-
-
-        ],
-        fluid=True,
-        className="dbc text-light"
-
-    ),
-    color="var(--bs-ufr-navbar)",
-    className="ufr-navbar shadow w-100", style={"position": "fixed", "z-index": "10"}
-)
 
 
 def get_dataset_card(dash_data):
@@ -363,7 +271,6 @@ def get_gsea_box():
 
 def get_layout(dash_data):
     layout = html.Div([
-        navbar,
         dcc.Store(data={}, id="volcano-highlight-ids"),
         dcc.Store(id="enrich-term"),
         dbc.Container(
@@ -501,8 +408,6 @@ def get_layout(dash_data):
             ],
             fluid=True,
             className="dbc",
-            style={"padding-top": "65px"}
-
         ),
         html.Footer(
             dbc.Container(
@@ -535,7 +440,11 @@ def get_layout(dash_data):
     return layout
 
 
-@app.callback(
+layout = get_layout(DASH_DATA[0])
+
+
+
+@callback(
     [Output('deseq-table', 'selected_rows')],
     [
         Input('select-all', 'n_clicks'),
@@ -560,21 +469,19 @@ def select_all(select_n_clicks, deselect_n_clicks, original_rows, filtered_rows,
     else:
         raise PreventUpdate
 
-
-@app.callback(
+@callback(
     Output('gsea-graph', 'figure'),
     Input('gsea-table', 'selected_rows'),
     Input('mode-switch', 'value'),
 
     State('dataset-dd', 'value'),
     State('comparison-dd', 'value'),
-    prevent_initial_call=False
 )
 def get_gsea_plot(selected_rows, switch, dataset_key, comp):
     df, plot_data = get_gsea_result(dataset_key, comp)
     descs = df["Description"].iloc[selected_rows]
-    cond = DASH_DATA[dataset_key]["comparisons"][comp]["condition"]
-    baseline = DASH_DATA[dataset_key]["comparisons"][comp]["baseline"]
+    cond = DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"]
+    baseline = DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"]
     if df is not None and len(df) > 0:
         fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST, show_zero_lfc=True, condition_name=cond, base_name=baseline, gene_list_name="log2FC")
     elif df is None:
@@ -600,13 +507,12 @@ def get_gsea_plot(selected_rows, switch, dataset_key, comp):
 
 
 
-@app.callback(
+@callback(
     Output("deseq-table", "data"),
     Output("deseq-table", "columns"),
     Output('volcano-highlight-ids', 'data'),
     Input('dataset-dd', 'value'),
     Input('comparison-dd', 'value'),
-    prevent_initial_call=False
 )
 def update_table_from_dataset(dataset_key, comp):
     df = get_deseq_result(dataset_key, comp)
@@ -637,13 +543,12 @@ def update_table_from_dataset(dataset_key, comp):
     return data, columns, {}
 
 
-@app.callback(
+@callback(
     Output("gsea-table", "data"),
     Output("gsea-table", "columns"),
     Output('gsea-table', 'selected_rows'),
     Input('dataset-dd', 'value'),
     Input('comparison-dd', 'value'),
-    prevent_initial_call=False
 )
 def update_table_from_dataset(dataset_key, comp):
     df, _ = get_gsea_result(dataset_key, comp)
@@ -672,12 +577,13 @@ def update_table_from_dataset(dataset_key, comp):
     return data, columns, list(range(min(len(df), 3)))
 
 
-@app.callback(
+@callback(
     Output('volcano-highlight-ids', 'data', allow_duplicate=True),
     Input('deseq-table', 'selected_rows'),
     State('volcano-highlight-ids', 'data'),
     State('dataset-dd', 'value'),
     State('comparison-dd', 'value'),
+    prevent_initial_call='initial_duplicate'
 
 )
 def add_selected_rows(selected_rows, highlight_data, dataset_key, comp):
@@ -687,15 +593,13 @@ def add_selected_rows(selected_rows, highlight_data, dataset_key, comp):
     return highlight_data
 
 
-@app.callback(
+@callback(
     Output("enrichment-graph", "figure"),
     Input("dataset-dd", "value"),
     Input("comparison-dd", "value"),
     Input("enrich-type-dd", "value"),
     Input("enrich-updown-dd", "value"),
     Input("mode-switch", "value"),
-
-    prevent_initial_call=False
 )
 def create_enrich(dataset_key, comp, enrich_type, updown, switch):
 
@@ -714,30 +618,33 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
     return fig
 
 
-@app.callback(
+
+@callback(
     Output("comparison-dd", "value"),
     Output("comparison-dd", "options"),
     Input('dataset-dd', 'value'),
-    prevent_initial_call=False
-
 )
 def update_comparisons(dataset_key):
-    comps = list(DASH_DATA[dataset_key]["comparisons"].keys())
+    comps = list(DASH_DATA[0][dataset_key]["comparisons"].keys())
     selected = comps[0]
     return selected, comps
 
-@app.callback(
+
+
+@callback(
     Output("enrich-updown-dd", "value"),
     Output("enrich-updown-dd", "options"),
     Input("comparison-dd", "value"),
     State('dataset-dd', 'value'),
 )
 def update_updown_dd(comp, dataset_key):
-    condition = DASH_DATA[dataset_key]["comparisons"][comp]["condition"]
-    baseline = DASH_DATA[dataset_key]["comparisons"][comp]["baseline"]
+    condition = DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"]
+    baseline = DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"]
     return condition, [condition, baseline]
 
-@app.callback(
+
+
+@callback(
     Output("add-name-dd", "value"),
     Output("add-name-dd", "options"),
     Input("comparison-dd", "value"),
@@ -745,12 +652,13 @@ def update_updown_dd(comp, dataset_key):
     State('add-name-dd', 'value'),
 )
 def update_volcano_column_selections(comp, dataset_key, current_add_name):
-    df = DASH_DATA[dataset_key]["comparisons"][comp]["deseq"]
+    df = get_deseq_result(dataset_key, comp)
     columns = list(df.columns)
     sel = dash.no_update if current_add_name in columns else None
     return sel, columns
 
-@app.callback(
+
+@callback(
     Output("volcano-graph", "figure"),
     Input('volcano-highlight-ids', 'data'),
     Input('add-name-dd', 'value'),
@@ -765,7 +673,7 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
     for idx, (key, value) in enumerate(highlight_data.items()):
         highlight[key] = (DEFAULT_PLOTLY_COLORS[key], value)
     df = get_deseq_result(dataset_key, comp)
-    config = DASH_DATA[dataset_key]["config"]
+    config = DASH_DATA[0][dataset_key]["config"]
 
     fig = volcano_from_deseq_result(
         df,
@@ -773,8 +681,8 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
         name_col=name_col,
         lfc_cut_off=config["log2FCCutOff"],
         padj_cutoff=config["pAdjCutOff"],
-        condition_name=DASH_DATA[dataset_key]["comparisons"][comp]["condition"],
-        base_name=DASH_DATA[dataset_key]["comparisons"][comp]["baseline"],
+        condition_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"],
+        base_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"],
         highlight_up_color=UP_COLOR_LIGHT if switch else UP_COLOR_DARK,
         highlight_down_color=DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK,
         opacity=0.1 if switch else 0.25
@@ -791,12 +699,12 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
 
     return fig
 
-
-@app.callback(
+@callback(
     Output('reset-enrich-selection', 'disabled', allow_duplicate=True),
     Output('volcano-highlight-ids', 'data', allow_duplicate=True),
     Input('reset-enrich-selection', 'n_clicks'),
     State('volcano-highlight-ids', 'data'),
+    prevent_initial_call=True
 
 )
 def reset_enrich_selection(n_clicks, current_data):
@@ -805,7 +713,7 @@ def reset_enrich_selection(n_clicks, current_data):
     return True, current_data
 
 
-@app.callback(
+@callback(
     Output('volcano-highlight-ids', 'data', allow_duplicate=True),
     Output('enrich-term', 'data', allow_duplicate=True),
     Output('reset-enrich-selection', 'disabled'),
@@ -815,6 +723,7 @@ def reset_enrich_selection(n_clicks, current_data):
     State('comparison-dd', 'value'),
     State("enrich-type-dd", "value"),
     State("enrich-updown-dd", "value"),
+    prevent_initial_call=True
 
 )
 def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enrich_type, updown):
@@ -837,11 +746,12 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
 
 
 
-@app.callback(
+@callback(
     Output("volcano-graph", "figure", allow_duplicate=True),
     Input("mode-switch", "value"),
     State("volcano-graph", "figure"),
     State("gsea-graph", "figure"),
+    prevent_initial_call='initial_duplicate'
 
 )
 def patch_all_figures_style(switch_value, f1, f2):
@@ -864,40 +774,3 @@ def patch_all_figures_style(switch_value, f1, f2):
 
 
 
-clientside_callback(
-    """
-    (switchOn) => {
-       document.documentElement.setAttribute("data-bs-theme", switchOn ? "light" : "dark"); 
-       return window.dash_clientside.no_update
-    }
-    """,
-    Output("mode-switch", "id"),
-    Input("mode-switch", "value"),
-)
-
-
-def cli_wrapper(
-        config_file: str = None,
-        run_dir: str = None,
-        debug: bool = False,
-        port: int = 8080,
-        host: str = "127.0.0.1",
-        processes: int = 1
-):
-    global DASH_DATA
-    DASH_DATA = get_data(config_file, run_dir)
-
-    app.layout = get_layout(dash_data=DASH_DATA)
-    app.run(debug=debug, port=port, host=host, processes=processes, threaded=False)
-
-
-def _cli_wrapper(args):
-    cli_wrapper(args.config, args.run_dir, args.debug, args.port, args.host, args.processes)
-
-
-
-if __name__ == '__main__':
-    config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
-    rd = "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/"
-
-    cli_wrapper(config_file=config_file, run_dir=rd, debug=True, processes=3)

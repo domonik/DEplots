@@ -4,6 +4,11 @@
 	background: #fff;
 }
 
+.dbc .Select-placeholder {
+	color: var(--bs-secondary) !important;
+	background-color: transparent !important;
+}
+
 .form-check {
     margin-bottom: 0;
 }

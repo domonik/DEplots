@@ -1,5 +1,5 @@
 import argparse
-from DEplots.dashboard.dashboard import _cli_wrapper
+from DEplots.dashboard.cli import _cli_wrapper
 
 
 def _dash_parser(subparsers, name):

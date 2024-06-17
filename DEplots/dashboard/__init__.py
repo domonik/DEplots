@@ -1,7 +1,7 @@
 import yaml
 import os
 import pandas as pd
-
+from plotly import express as px
 
 DIRPATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -32,6 +32,8 @@ def read_files(config):
         add_data = None
 
     dash_data = {}
+    multiindex_data = {}
+    multiindex_count = {}
     for name, file in config_files.items():
         with open(file, "r") as handle:
             d = yaml.safe_load(handle)
@@ -44,12 +46,8 @@ def read_files(config):
                 comp_file = os.path.join(dirname, f"PipelineData/DESeqResults/DESeqResult_c{condition}_vs_b{baseline}.tsv")
 
                 assert os.path.isfile(comp_file), f"File {comp_file} not found"
-
                 df = pd.read_csv(comp_file, sep="\t")
-                df["Name"] = df.index
-                df = df[["Name"] + [col for col in df.columns if col != "Name"]]
-                if add_data is not None:
-                    df = df.merge(add_data, left_index=True, right_index=True)
+
                 if name_mapping:
                     cname = name_mapping[condition] if condition in name_mapping else condition
                     bname = name_mapping[baseline] if baseline in name_mapping else baseline
@@ -58,7 +56,14 @@ def read_files(config):
                     bname = baseline
                 comp_str = f"{cname} vs {bname}"
                 dash_data[name]["comparisons"][comp_str] = {}
-                dash_data[name]["comparisons"][comp_str]["deseq"] = df
+                if comp_str not in multiindex_data:
+                    multiindex_data[comp_str] = [[], []]
+                    multiindex_count[comp_str] = 0
+                multiindex_data[comp_str][0] = multiindex_data[comp_str][0] + [(name, col) for col in df.columns]
+                multiindex_data[comp_str][1].append(df)
+                old = multiindex_count[comp_str]
+                multiindex_count[comp_str] = old + df.shape[1]
+                dash_data[name]["comparisons"][comp_str]["deseq"] = (old, multiindex_count[comp_str])
                 dash_data[name]["comparisons"][comp_str]["enrich"] = {}
                 dash_data[name]["comparisons"][comp_str]["condition"] = cname
                 dash_data[name]["comparisons"][comp_str]["baseline"] = bname
@@ -98,5 +103,52 @@ def read_files(config):
                     dash_data[name]["comparisons"][comp_str]["gsea"]["plot_data"] = gsea_plot_data
                     dash_data[name]["comparisons"][comp_str]["gsea"]["df"] = gsea_file
 
+    for key, value in multiindex_data.items():
+        names, dfs = value
+        if add_data is not None:
+            dfs.append(add_data)
+            names += [("Additional Data", col) for col in add_data.columns]
+        multi_index = pd.MultiIndex.from_tuples(names)
 
-    return dash_data
+        df = pd.concat(dfs, axis=1, join="outer")
+        df.columns = multi_index
+
+        df[("Name", "Name")] = df.index
+        cols = [("Name", "Name")] + [col for col in df.columns if col != ("Name", "Name")]
+        df = df[cols]
+        multiindex_data[key] = df
+    return dash_data, multiindex_data
+
+
+DEFAULT_PLOTLY_COLORS = {
+    "not-enriched": "#344A9A",
+    "enriched": "#00a082",
+    "Selected": "#8f6b30",
+    "placeholder": "#ffe863",
+    "placeholder2": "#f5c2ed"
+
+}
+DEFAULT_PLOTLY_COLORS_LIST = list(DEFAULT_PLOTLY_COLORS.values()) + px.colors.DEFAULT_PLOTLY_COLORS
+LAYOUT = {
+    "template": "plotly_white",
+    'paper_bgcolor': 'rgba(0,0,0,0)',
+    'plot_bgcolor': 'rgb(219, 219, 219)',
+    "font": {"color": "black", "size": 16},
+    "xaxis": {"showline": True, "mirror": True, "linecolor": "black"},
+    "yaxis": {"showline": True, "mirror": True, "linecolor": "black"},
+    "margin": {"b": 10, "t": 10}
+}
+DARK_LAYOUT = {
+    "template": "plotly_white",
+    'paper_bgcolor': 'rgba(0,0,0,0)',
+    'plot_bgcolor': 'rgba(0,0,0,0)',
+    "font": {"color": "white", "size": 16},
+    "xaxis": {"showline": True, "mirror": True, "linecolor": "white"},
+    "yaxis": {"showline": True, "mirror": True, "linecolor": "white"},
+    "margin": {"b": 10, "t": 10}
+}
+UP_COLOR_LIGHT = "#00a082"
+UP_COLOR_DARK = "#00a082"
+DOWN_COLOR_LIGHT = "#344A9A"
+DOWN_COLOR_DARK = "#f5c2ed"
+DASH_DATA = None
