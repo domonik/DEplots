@@ -136,7 +136,8 @@ LAYOUT = {
     "font": {"color": "black", "size": 16},
     "xaxis": {"showline": True, "mirror": True, "linecolor": "black"},
     "yaxis": {"showline": True, "mirror": True, "linecolor": "black"},
-    "margin": {"b": 10, "t": 10}
+    "margin": {"b": 10, "t": 10},
+
 }
 DARK_LAYOUT = {
     "template": "plotly_white",

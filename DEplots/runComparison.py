@@ -5,6 +5,7 @@ from DEplots.dashboard import get_data
 from plotly.subplots import make_subplots
 from typing import Tuple, List
 import numpy as np
+import itertools
 
 
 
@@ -53,6 +54,103 @@ def plot_gene_among_conditions(df, genes, name_col: Tuple = None, runs: List = N
     return fig
 
 
+def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", "black"), trim_zeros: bool = True,  **kwargs):
+    # an array of dimensions d x d*2^d possible subsets where d is the number of columns
+    subsets = []
+    hovertemplate = "%{hovertext}<extra></extra>"
+
+    # the sizes of each subset (2^d array)
+    subset_sizes = []
+    d = len(df.columns)
+    for i in range(1, d + 1):
+        subsets = subsets + [list(x) for x in list(itertools.combinations(df.columns, i))]
+
+    for s in subsets:
+        curr_bool = [1] * len(df)
+        for col in df.columns:
+            if col in s:
+                curr_bool = [x and y for x, y in zip(curr_bool, list(df.loc[:, col].copy()))]
+            else:
+                curr_bool = [x and not y for x, y in zip(curr_bool, list(df.loc[:, col].copy()))]
+        subset_sizes.append(sum(curr_bool))
+    plot_df = pd.DataFrame({'Intersection': subsets, 'Size': subset_sizes})
+    plot_df["text"] = plot_df["Intersection"].apply(lambda  x: "<br>".join(x))
+
+    if trim_zeros:
+        plot_df = plot_df[plot_df["Size"] != 0]
+    if sorted:
+        plot_df = plot_df.sort_values(by='Size', ascending=False)
+    fig = make_subplots(rows=2, shared_xaxes=True, **kwargs)
+    fig.add_trace(
+        go.Bar(
+            x=plot_df["text"],
+            y=plot_df["Size"],
+            marker=dict(color=bar_color),
+            name="Set size"
+        )
+    )
+
+    x = np.tile(plot_df["text"], len(df.columns))
+    y = np.repeat(df.columns, len(plot_df["text"]))
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            #line=None,
+            mode="markers",
+            marker=dict(color=dot_colors[0], size=20),
+            showlegend=False,
+            hoverinfo="skip"
+        ),
+        row=2,
+        col=1
+    )
+    for idx, row in plot_df.iterrows():
+        y = row["Intersection"]
+
+        fig.add_trace(
+            go.Scatter(
+                x=np.repeat(row["text"], len(y)),
+                y=y,
+                mode="lines+markers",
+                marker=dict(color=dot_colors[1], size=20),
+                line=dict(color=dot_colors[1], width=5),
+                showlegend=False,
+                hovertext=np.repeat(row["text"], len(y)),
+                hovertemplate=hovertemplate
+            ),
+            row=2,
+            col=1
+        )
+    y_range = [-0.5, len(df.columns) - 0.5]
+    x_range = [-1, len(plot_df["text"])]
+
+    # Update the layout to reduce the extra space
+    fig.update_yaxes(range=y_range, row=2)
+    fig.update_xaxes(range=x_range, row=2)
+    fig.update_traces(showlegend=False)
+    fig.update_layout(hovermode="x")
+    return fig
+
+
+
+def upset_plot_from_deseq(df, padj_cutoff, lfc_cutoff, mode: str = "up", **kwargs):
+    columns = df.columns.get_level_values(0)[df.columns.get_level_values(1) == 'log2FoldChange'].unique()
+    data = {}
+    if mode == "up":
+        for condition in columns:
+            data[condition] = (df[(condition, 'log2FoldChange')] >= lfc_cutoff) & (df[(condition, 'padj')] <= padj_cutoff)
+    elif mode == "down":
+        for condition in columns:
+            data[condition] = (df[(condition, 'log2FoldChange')] <= lfc_cutoff) & (df[(condition, 'padj')] <= padj_cutoff)
+
+    data = pd.DataFrame(data)
+    fig = plotly_upset_plot(data, **kwargs)
+    return fig
+
+
+
 
 if __name__ == '__main__':
     config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
@@ -62,4 +160,7 @@ if __name__ == '__main__':
     genes = data[(data[("Additional Data", "gene_name")].str.contains("psb") == True) & (~data.index.str.contains("UTR"))].index
 
     runs = ["LightRunMinusPuromycin", "LightDark_LightOnly", "LightDark_DarkOnly"]
-    plot_gene_among_conditions(data, genes[11:14], name_col=("Additional Data", "gene_name"), runs=None)
+    fig = upset_plot_from_deseq(data, padj_cutoff=0.05, lfc_cutoff=0.8)
+    fig.update_xaxes(showticklabels=False)
+
+    fig.show()

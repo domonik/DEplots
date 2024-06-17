@@ -4,7 +4,7 @@ from dash import Input, Output, State, html, dcc, callback, dash_table
 import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
-from DEplots.runComparison import plot_gene_among_conditions
+from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_deseq
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, DASH_DATA
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
@@ -173,6 +173,34 @@ def get_line_plot_card():
     )
     return gsea_box
 
+
+def get_upset_card(updown):
+    gsea_box = dbc.Col(
+        dbc.Card(
+            [
+                dbc.CardHeader(
+                    dbc.Row(
+                        [
+                            dbc.Col(html.H5(f"Upset {updown} regulated"), width=6),
+
+                        ]
+
+                    ),
+
+                ),
+                dbc.Col(dcc.Graph(id=f"upset-{updown}-graph", ), width=12,
+
+                        ),
+
+            ],
+            className="shadow",
+        ),
+        width=12
+    )
+    return gsea_box
+
+
+
 def get_layout(dash_data):
     lout = html.Div(
         [
@@ -192,6 +220,24 @@ def get_layout(dash_data):
                         className="py-1"
 
                     ),
+                    dbc.Row(
+                        [
+                            get_upset_card("up"),
+
+                        ],
+
+                        className="py-1"
+
+                    ),
+                    dbc.Row(
+                        [
+                            get_upset_card("down"),
+
+                        ],
+
+                        className="py-1"
+
+                    ),
 
 
                 ],
@@ -202,6 +248,55 @@ def get_layout(dash_data):
     )
     return lout
 
+
+def upset_fig(datasets, switch, comp, updown):
+    if datasets is None:
+        raise dash.exceptions.PreventUpdate
+    idx = pd.IndexSlice
+    df = DASH_DATA[1][comp]
+    df = df.loc[:, idx[datasets, :]]
+    if updown == "up":
+        lfc_cutoff = 0.8
+        barcolor = DEFAULT_PLOTLY_COLORS_LIST[1]
+        dot_colors = ("grey", barcolor)
+
+    else:
+        lfc_cutoff = -0.8
+        barcolor = DEFAULT_PLOTLY_COLORS_LIST[0]
+        dot_colors = ("grey", barcolor)
+    fig = upset_plot_from_deseq(df, padj_cutoff=0.05, lfc_cutoff=lfc_cutoff, vertical_spacing=0.01, bar_color=barcolor, dot_colors=dot_colors)
+    fig.update_xaxes(showticklabels=False)
+    if not switch:
+        fig.update_layout(DARK_LAYOUT)
+        linecolor = "white"
+    else:
+        fig.update_layout(LAYOUT)
+        linecolor = "black"
+    fig.update_yaxes(showline=True, linecolor=linecolor, mirror=True)
+    fig.update_xaxes(showline=True, linecolor=linecolor, mirror=True)
+    return fig
+
+@callback(
+    Output("upset-up-graph", "figure"),
+    Input("dataset-compare-dd", "value"),
+    Input("mode-switch", "value"),
+    State("comparison-hash-dd", "value"),
+
+)
+def plot_upset_up(datasets, switch, comp):
+    fig = upset_fig(datasets, switch, comp, "up")
+    return fig
+
+@callback(
+    Output("upset-down-graph", "figure"),
+    Input("dataset-compare-dd", "value"),
+    Input("mode-switch", "value"),
+    State("comparison-hash-dd", "value"),
+
+)
+def plot_upset_down(datasets, switch, comp):
+    fig = upset_fig(datasets, switch, comp, "down")
+    return fig
 
 
 @callback(
