@@ -32,17 +32,17 @@ def plot_gene_among_conditions(df, genes, name_col: Tuple = None, runs: List = N
         errors = sdf.loc[gene, pd.IndexSlice[:, "lfcSE"]]
         name = names.loc[gene] if name_col else gene
         fig.add_trace(
-            go.Scatter(
+            go.Bar(
                 x=columns,
                 y=slice,
                 name=name,
                 error_y=dict(
                     type="data",
                     array=errors,
-                    visible=True
+                    visible=True,
                 ),
                 showlegend=True,
-                line=dict(color=colors[i-1]),
+                #line=dict(color=colors[i-1]),
                 marker=dict(color=colors[i-1])
             ),
             row=i, col=1

@@ -75,11 +75,7 @@ def get_table():
             dbc.CardHeader(
                 dbc.Row(
                     [
-                        dbc.Col(html.H5("DESeq table"), width=6, align="center"),
-                        dbc.Col([
-                            dbc.Button("Select Filtered", id="select-all", className="m-1"),
-                            dbc.Button("Reset Selection", id="deselect-all", className="m-1"),
-                        ], width=3, align="center", className="d-flex justify-content-end"),
+                        dbc.Col(html.H5("Multi DESeq table"), width=6, align="center"),
                     ],
                     justify="between"
                 ),
@@ -244,11 +240,14 @@ def update_datasets_table(datasets, comp):
 
 @callback(
     Output("dataset-compare-dd", "options"),
+    Output("dataset-compare-dd", "value"),
     Input("comparison-hash-dd", "value"),
 
 )
 def update_selectable_datasets(comp):
-    return get_datasets_with_comp(comp)
+    sets = get_datasets_with_comp(comp)
+    return sets, sets
+
 
 
 @callback(
@@ -290,6 +289,9 @@ def update_line_plot(sel_rows, datasets, switch, legend_name, comp):
         linecolor = "black"
     if plot:
         fig.update_shapes(line=dict(color=linecolor))
+        fig.update_traces(
+            error_y=dict(color=linecolor)
+        )
 
         fig.update_xaxes(showgrid=False, zeroline=False, showline=True, layer="above traces", linecolor=linecolor, mirror=True)
         fig.update_yaxes(showgrid=True, zeroline=False, showline=True, mirror=True, linecolor=linecolor, nticks=3)
