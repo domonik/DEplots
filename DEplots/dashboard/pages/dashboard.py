@@ -765,6 +765,7 @@ def patch_all_figures_style(switch_value, f1, f2):
     patched_volcano["layout"]["shapes"][0]["fillcolor"] = upc
     patched_volcano["layout"]["shapes"][0]["opacity"] = 0.1 if switch_value else 0.25
     patched_volcano["layout"]["annotations"][0]["font"]["color"] = upc
+    patched_volcano["layout"]['plot_bgcolor']= LAYOUT["plot_bgcolor"] if switch_value else DARK_LAYOUT["plot_bgcolor"]
 
     patched_volcano["layout"]["shapes"][1]["fillcolor"] = downc
     patched_volcano["layout"]["shapes"][1]["opacity"] = 0.1 if switch_value else 0.25

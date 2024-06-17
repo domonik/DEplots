@@ -4,6 +4,10 @@
 	background: #fff;
 }
 
+.fa-xl {
+    vertical-align: 0 !important;
+}
+
 .dbc .Select-placeholder {
 	color: var(--bs-secondary) !important;
 	background-color: transparent !important;

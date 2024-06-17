@@ -1,7 +1,7 @@
 
 import os
 import dash
-from dash import Dash, html, dcc, clientside_callback, Input, Output
+from dash import Dash, html, dcc, clientside_callback, Input, Output, State
 import dash_bootstrap_components as dbc
 
 FILEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,12 +21,12 @@ app = Dash(
 print("APP defined")
 
 
-color_mode_switch = dbc.Row(
+color_mode_switch = html.Span(
     [
-        dbc.Col(html.I(className="fa fa-xl fa-moon", ), className="d-flex justify-content-end align-items-center", width=3, md=1),
-        dbc.Col(dbc.Switch(id="mode-switch", className="ms-3 fs-4", persistence=True), className="d-flex justify-content-center align-items-center", width=3, md=1),
-        dbc.Col(html.I(className="fa fa-xl fa-sun"), className="d-flex justify-content-start align-items-center", width=3, md=1 ),
-    ], justify="end", className="w-100"
+        dbc.Label(className="fa fa-xl fa-moon", html_for="switch", style={"vertical-align": "0 !important"}),
+        dbc.Switch( id="mode-switch", value=True, className="d-inline-block ms-3 fs-4", persistence=True),
+        dbc.Label(className="fa fa-xl fa-sun", html_for="switch", style={"vertical-align": "0 !important"}),
+    ]
 )
 
 
@@ -36,31 +36,72 @@ def get_navbar():
     navbar = dbc.Navbar(
         dbc.Container(
             [
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            dbc.Row(
-                                [
-                                    dbc.Col(html.Img(src="https://cd.uni-freiburg.de/wp-content/uploads/2022/09/ufr-logo-white-2.png", height="50px")),
+                html.A(
+                    dbc.Row(
+                        [
 
-                                ] + [
-                                    dbc.Col(dcc.Link(f"{page['name']}", href=page["relative_path"])) for page in dash.page_registry.values()
-                                ],
-                                align="center",
-                                className="g-0",
+                            dbc.Col(html.Img(
+                                src=app.get_asset_url("BioInfLogo.png"),
+                                height="50px"),
                             ),
-                            width=3, className="d-md-flex d-none"
-                        ),
-                        dbc.Col(html.H2("DESeq Explorer", className="text-md-center"), width=6, align="center",),
+                            dbc.Col(dbc.NavbarBrand("DESeq Explorer", className="ms-2"), className="d-flex align-items-center"),
+                        ]
 
-                        dbc.Col(
-                            color_mode_switch,
-                            width=3, className="d-flex align-items-center"
-                        )
-                    ],
-                    className="w-100 ", justify="between"
+                    )
 
                 ),
+                dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
+
+                dbc.Collapse(
+                    [
+                        dbc.NavItem(dbc.NavLink(f"{page['name']}", href=page["relative_path"]), className="p-1") for
+                        page in dash.page_registry.values()
+                    ],
+                    is_open=False,
+                    navbar=True,
+                    id="navbar-collapse2",
+
+                ),
+                dbc.Collapse(
+                    [color_mode_switch] + [
+                        dbc.NavItem(
+                            html.Img(
+                                src="https://cd.uni-freiburg.de/wp-content/uploads/2022/09/ufr-logo-white-2.png",
+                                height="50px"),
+                            className="ps-0 ps-md-3"
+
+                        )
+                    ],
+                    id="navbar-collapse",
+                    className="justify-content-end",
+                    is_open=False,
+                    navbar=True,
+                ),
+
+                # dbc.Row(
+                #     [
+                #
+                #         dbc.Col(
+                #             dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
+                #             className="d-flex d-md-none"
+                #         ),
+                #         dbc.Col(
+                #             [
+                #                 dbc.NavItem(dbc.NavLink(f"{page['name']}", href=page["relative_path"]), className="p-1") for page in
+                #                 dash.page_registry.values()
+                #             ],
+                #             width=3, md=3, className="d-flex align-items-center"
+                #         ),
+                #         dbc.Col(html.H2("DESeq Explorer", className="text-md-center"), width=3, align="center",),
+                #
+                #         dbc.Col(
+                #             color_mode_switch,
+                #             width=4, className="d-flex align-items-center"
+                #         )
+                #     ],
+                #     #className="w-100 ",
+                #
+                # ),
 
 
 
@@ -69,6 +110,7 @@ def get_navbar():
             className="dbc text-light"
 
         ),
+        dark=True,
         color="var(--bs-ufr-navbar)",
         className="ufr-navbar shadow w-100", style={"position": "fixed", "z-index": "10"}
     )
@@ -90,6 +132,19 @@ def get_layout():
     )
     return layout
 
+
+@app.callback(
+    Output("navbar-collapse", "is_open"),
+    Output("navbar-collapse2", "is_open"),
+    [Input("navbar-toggler", "n_clicks")],
+    [
+        State("navbar-collapse", "is_open"),
+    ],
+)
+def toggle_navbar_collapse(n, is_open):
+    if n:
+        return not is_open, not is_open
+    return is_open, is_open
 
 clientside_callback(
     """
