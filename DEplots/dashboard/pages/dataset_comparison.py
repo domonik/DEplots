@@ -250,22 +250,23 @@ def get_layout(dash_data):
 
 
 def upset_fig(datasets, switch, comp, updown):
-    if datasets is None:
-        raise dash.exceptions.PreventUpdate
-    idx = pd.IndexSlice
-    df = DASH_DATA[1][comp]
-    df = df.loc[:, idx[datasets, :]]
-    if updown == "up":
-        lfc_cutoff = 0.8
-        barcolor = DEFAULT_PLOTLY_COLORS_LIST[1]
-        dot_colors = ("grey", barcolor)
-
+    dot_color = "grey" if switch else "rgb(80,80,80)"
+    if datasets is None or len(datasets) == 0:
+        fig = empty_figure("No dataset selected")
     else:
-        lfc_cutoff = -0.8
-        barcolor = DEFAULT_PLOTLY_COLORS_LIST[0]
-        dot_colors = ("grey", barcolor)
-    fig = upset_plot_from_deseq(df, padj_cutoff=0.05, lfc_cutoff=lfc_cutoff, vertical_spacing=0.01, bar_color=barcolor, dot_colors=dot_colors)
-    fig.update_xaxes(showticklabels=False)
+        idx = pd.IndexSlice
+        df = DASH_DATA[1][comp]
+        df = df.loc[:, idx[datasets, :]]
+        if updown == "up":
+            lfc_cutoff = 0.8
+            barcolor = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
+            dot_colors = (dot_color, barcolor)
+
+        else:
+            lfc_cutoff = -0.8
+            barcolor = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
+            dot_colors = (dot_color, barcolor)
+        fig = upset_plot_from_deseq(df, padj_cutoff=0.05, lfc_cutoff=lfc_cutoff, vertical_spacing=0, bar_color=barcolor, dot_colors=dot_colors, horizontal_spacing=0, mode=updown)
     if not switch:
         fig.update_layout(DARK_LAYOUT)
         linecolor = "white"
@@ -274,6 +275,7 @@ def upset_fig(datasets, switch, comp, updown):
         linecolor = "black"
     fig.update_yaxes(showline=True, linecolor=linecolor, mirror=True)
     fig.update_xaxes(showline=True, linecolor=linecolor, mirror=True)
+    fig.update_xaxes(gridcolor=dot_color, row=2, col=1)
     return fig
 
 @callback(
@@ -357,7 +359,7 @@ def update_selectable_datasets(comp):
 )
 def update_line_plot(sel_rows, datasets, switch, legend_name, comp):
     plot = False
-    if datasets is None:
+    if datasets is None or len(datasets) == 0:
         fig = empty_figure("No dataset selected")
     elif sel_rows is None or len(sel_rows) == 0:
         fig = empty_figure("No gene selected")

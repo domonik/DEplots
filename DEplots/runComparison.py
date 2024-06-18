@@ -54,7 +54,7 @@ def plot_gene_among_conditions(df, genes, name_col: Tuple = None, runs: List = N
     return fig
 
 
-def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", "black"), trim_zeros: bool = True,  **kwargs):
+def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", "black"), trim_zeros: bool = True, show_sum: bool = True,  **kwargs):
     # an array of dimensions d x d*2^d possible subsets where d is the number of columns
     subsets = []
     hovertemplate = "%{hovertext}<extra></extra>"
@@ -80,13 +80,18 @@ def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", 
         plot_df = plot_df[plot_df["Size"] != 0]
     if sorted:
         plot_df = plot_df.sort_values(by='Size', ascending=False)
-    fig = make_subplots(rows=2, shared_xaxes=True, **kwargs)
+    if "column_widths" not in kwargs:
+        kwargs["column_widths"] = [0.8, 0.2]
+    cols = 2 if show_sum else 1
+    fig = make_subplots(rows=2, cols=cols, shared_xaxes=True, shared_yaxes=True, **kwargs)
     fig.add_trace(
         go.Bar(
             x=plot_df["text"],
             y=plot_df["Size"],
             marker=dict(color=bar_color),
-            name="Set size"
+            name="Intersection size",
+            hovertemplate="<b>%{y}<br></b>%{x}",
+
         )
     )
 
@@ -114,23 +119,62 @@ def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", 
                 x=np.repeat(row["text"], len(y)),
                 y=y,
                 mode="lines+markers",
-                marker=dict(color=dot_colors[1], size=20),
+                marker=dict(color=dot_colors[1], size=20, line=dict(color=dot_colors[1], width=2)),
                 line=dict(color=dot_colors[1], width=5),
                 showlegend=False,
                 hovertext=np.repeat(row["text"], len(y)),
-                hovertemplate=hovertemplate
+                hovertemplate=hovertemplate,
             ),
             row=2,
             col=1
         )
     y_range = [-0.5, len(df.columns) - 0.5]
     x_range = [-1, len(plot_df["text"])]
+    if show_sum:
+        df_sum = df.sum(axis=0)
+        fig.add_trace(
+            go.Bar(
+                x=df_sum,
+                y=df_sum.keys(),
+                marker=dict(color=bar_color),
+                name="Set size",
+                orientation="h",
+                hovertemplate="<b>%{x}<br></b>%{y}"
 
+            ),
+            row=2,
+            col=2
+        )
     # Update the layout to reduce the extra space
-    fig.update_yaxes(range=y_range, row=2)
-    fig.update_xaxes(range=x_range, row=2)
+    fig.update_yaxes(range=y_range, row=2, showgrid=False)
+    fig.update_xaxes(range=x_range, col=1)
     fig.update_traces(showlegend=False)
-    fig.update_layout(hovermode="x")
+    fig.update_xaxes(showticklabels=True, col=2)
+    fig.update_xaxes(showticklabels=False, col=1)
+    fig.update_layout(hoverdistance=100)
+    fig.add_annotation(
+        text="Set size",
+        xref="x4 domain",
+        yref="y4 domain",
+        xanchor="center",
+        yanchor="bottom",
+        showarrow=False,
+        x=0.5,
+        y=1
+    )
+    fig.add_annotation(
+        text="Intersection size",
+        xref="x domain",
+        yref="y domain",
+        xanchor="left",
+        yanchor="middle",
+        textangle=90,
+        showarrow=False,
+        x=1,
+        y=0.5
+    )
+
+    #fig.update_layout(hovermode="x")
     return fig
 
 
@@ -160,7 +204,6 @@ if __name__ == '__main__':
     genes = data[(data[("Additional Data", "gene_name")].str.contains("psb") == True) & (~data.index.str.contains("UTR"))].index
 
     runs = ["LightRunMinusPuromycin", "LightDark_LightOnly", "LightDark_DarkOnly"]
-    fig = upset_plot_from_deseq(data, padj_cutoff=0.05, lfc_cutoff=0.8)
-    fig.update_xaxes(showticklabels=False)
+    fig = upset_plot_from_deseq(data, padj_cutoff=0.05, lfc_cutoff=0.8, mode="down")
 
     fig.show()
