@@ -4,6 +4,10 @@
 	background: #fff;
 }
 
+.nav-link.active {
+    font-weight: bold;
+}
+
 .fa-xl {
     vertical-align: 0 !important;
 }

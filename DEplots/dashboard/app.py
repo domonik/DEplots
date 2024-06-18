@@ -1,7 +1,7 @@
 
 import os
 import dash
-from dash import Dash, html, dcc, clientside_callback, Input, Output, State
+from dash import Dash, html, dcc, clientside_callback, Input, Output, State, ALL
 import dash_bootstrap_components as dbc
 
 FILEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,6 +36,8 @@ def get_navbar():
     navbar = dbc.Navbar(
         dbc.Container(
             [
+                dcc.Location(id='url', refresh="callback-nav"),
+
                 html.A(
                     dbc.Row(
                         [
@@ -54,8 +56,8 @@ def get_navbar():
 
                 dbc.Collapse(
                     [
-                        dbc.NavItem(dbc.NavLink(f"{page['name']}", href=page["relative_path"]), className="p-1") for
-                        page in dash.page_registry.values()
+                        dbc.NavItem(dbc.NavLink(f"{page['name']}", href=page["relative_path"], id={"type": f"nav-item", "index": idx}), className="p-1") for
+                        idx, page in enumerate(dash.page_registry.values())
                     ],
                     is_open=False,
                     navbar=True,
@@ -145,6 +147,17 @@ def toggle_navbar_collapse(n, is_open):
     if n:
         return not is_open, not is_open
     return is_open, is_open
+
+
+@app.callback(
+    Output({'type': 'nav-item', 'index': ALL}, 'active'),
+    Input("url", "pathname"),
+    State({'type': 'nav-item', 'index': ALL}, 'href'),
+)
+def update_active_nav(url, state):
+    d = [url == href for href in state]
+    return d
+
 
 clientside_callback(
     """

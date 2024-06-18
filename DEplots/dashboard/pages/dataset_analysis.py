@@ -10,7 +10,7 @@ from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST,
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, DASH_DATA
 import pandas as pd
 
-dash.register_page(__name__, path='/analysis')
+dash.register_page(__name__, path='/analysis', name="Visualization")
 
 
 def get_deseq_result(dataset_key, comp):

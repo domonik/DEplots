@@ -276,6 +276,7 @@ def upset_fig(datasets, switch, comp, updown):
             barcolor = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
             dot_colors = (dot_color, barcolor)
         fig = upset_plot_from_deseq(df, padj_cutoff=padj_cutoff, lfc_cutoff=lfc_cutoff, vertical_spacing=0, bar_color=barcolor, dot_colors=dot_colors, horizontal_spacing=0, mode=updown)
+        fig.update_yaxes(fixedrange=True, row=2)
     if not switch:
         fig.update_layout(DARK_LAYOUT)
         linecolor = "white"
