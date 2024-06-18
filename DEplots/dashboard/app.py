@@ -112,7 +112,7 @@ def get_navbar():
         ),
         dark=True,
         color="var(--bs-ufr-navbar)",
-        className="ufr-navbar shadow w-100", style={"position": "fixed", "z-index": "999"}
+        className="ufr-navbar shadow w-100", style={"position": "fixed", "z-index": "99999"}
     )
     return navbar
 

@@ -91,7 +91,8 @@ def plotly_upset_plot(df, sorted = False, bar_color="blue", dot_colors=("grey", 
             marker=dict(color=bar_color),
             name="Intersection size",
             hovertemplate="<b>%{y}<br></b>%{x}",
-
+            text=plot_df["Size"],
+            textangle=0
         )
     )
 

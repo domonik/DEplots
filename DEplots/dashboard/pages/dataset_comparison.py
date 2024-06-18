@@ -32,6 +32,8 @@ def get_datasets_with_comp(comp):
 
 def datasets_card():
     comps = list(DASH_DATA[1].keys())
+    comp = comps[0]
+    sets = get_datasets_with_comp(comp)
     dataset_card = dbc.Col(
         dbc.Card(
             dbc.Row(
@@ -39,9 +41,11 @@ def datasets_card():
                     dbc.Col(html.H5("Datasets"), width=2, className="d-flex"),
                     dbc.Col(
                         dcc.Dropdown(
-                            comps, comps[0],
+                            comps, comp,
                             id="comparison-hash-dd",
-                            clearable=False
+                            clearable=False,
+                            persistence=True,
+                            persistence_type="session"
 
                         ),
                         width=3
@@ -50,8 +54,12 @@ def datasets_card():
                     dbc.Col(
                         dcc.Dropdown(
                             id="dataset-compare-dd",
+                            value=sets,
+                            options=sets,
                             clearable=True,
-                            multi=True
+                            multi=True,
+                            persistence=True,
+                            persistence_type="session",
 
                         ),
                         width=6
@@ -181,14 +189,14 @@ def get_upset_card(updown):
                 dbc.CardHeader(
                     dbc.Row(
                         [
-                            dbc.Col(html.H5(f"Upset {updown} regulated"), width=6),
+                            dbc.Col(html.H5(f"Upset {updown} regulated", id=f"{updown}-reg-header"), width=6),
 
                         ]
 
                     ),
 
                 ),
-                dbc.Col(dcc.Graph(id=f"upset-{updown}-graph", ), width=12,
+                dbc.Col(dcc.Graph(id=f"upset-{updown}-graph",), width=12,
 
                         ),
 
@@ -257,16 +265,17 @@ def upset_fig(datasets, switch, comp, updown):
         idx = pd.IndexSlice
         df = DASH_DATA[1][comp]
         df = df.loc[:, idx[datasets, :]]
+        padj_cutoff = DASH_DATA[0][datasets[0]]["config"]["pAdjCutOff"]
         if updown == "up":
-            lfc_cutoff = 0.8
+            lfc_cutoff = DASH_DATA[0][datasets[0]]["config"]["log2FCCutOff"]
             barcolor = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
             dot_colors = (dot_color, barcolor)
 
         else:
-            lfc_cutoff = -0.8
+            lfc_cutoff = -DASH_DATA[0][datasets[0]]["config"]["log2FCCutOff"]
             barcolor = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
             dot_colors = (dot_color, barcolor)
-        fig = upset_plot_from_deseq(df, padj_cutoff=0.05, lfc_cutoff=lfc_cutoff, vertical_spacing=0, bar_color=barcolor, dot_colors=dot_colors, horizontal_spacing=0, mode=updown)
+        fig = upset_plot_from_deseq(df, padj_cutoff=padj_cutoff, lfc_cutoff=lfc_cutoff, vertical_spacing=0, bar_color=barcolor, dot_colors=dot_colors, horizontal_spacing=0, mode=updown)
     if not switch:
         fig.update_layout(DARK_LAYOUT)
         linecolor = "white"
@@ -304,6 +313,8 @@ def plot_upset_down(datasets, switch, comp):
 @callback(
     Output("plot-hover-name-dd", "options"),
     Output("plot-hover-name-dd", "value"),
+    Output("down-reg-header", "children"),
+    Output("up-reg-header", "children"),
     Input("comparison-hash-dd", "value"),
 
 )
@@ -312,7 +323,10 @@ def update_name_selection(comp):
         raise dash.exceptions.PreventUpdate
     datasets = get_datasets_with_comp(comp)
     options = [f"{col[0]} - {col[1]}" for col in DASH_DATA[1][comp].columns if col[0] not in datasets]
-    return options, options[0]
+    data = DASH_DATA[0][datasets[0]]["comparisons"][comp]
+    condition = data["condition"]
+    baseline = data["baseline"]
+    return options, options[0], f"Upset plot - {baseline}", f"Upset plot - {condition}"
 
 @callback(
     Output("datasets-table", "columns"),
@@ -339,11 +353,17 @@ def update_datasets_table(datasets, comp):
     Output("dataset-compare-dd", "options"),
     Output("dataset-compare-dd", "value"),
     Input("comparison-hash-dd", "value"),
+    State("dataset-compare-dd", "value"),
 
 )
-def update_selectable_datasets(comp):
+def update_selectable_datasets(comp, dd_state):
     sets = get_datasets_with_comp(comp)
-    return sets, sets
+    print(dd_state, "dd-state")
+    if dd_state is not None:
+        selected = dd_state if all([v in sets for v in dd_state]) else sets
+    else:
+        selected = sets
+    return sets, selected
 
 
 
