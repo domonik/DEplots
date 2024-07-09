@@ -36,6 +36,21 @@ h5 {
     margin-bottom: .3em !important;
 }
 
+.dash-select-cell input[type=checkbox] {
+    margin: 0 !important;
+}
+
+
+.dash-select-cell input[type=checkbox]:checked:before {
+    content: "✓";
+    background-color: var(--bs-secondary);
+    float: left;
+    width: 1em;
+    height: 1em;
+    line-height: 1em;
+    text-align: center;
+}
+
 ul.icon-list {
   list-style-type: none; /* Remove bullet points */
   padding: 0; /* Remove default padding */

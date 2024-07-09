@@ -8,6 +8,7 @@ from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_de
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, DASH_DATA
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
+import numpy as np
 
 
 
@@ -83,7 +84,52 @@ def get_table():
             dbc.CardHeader(
                 dbc.Row(
                     [
-                        dbc.Col(html.H5("Multi DESeq table"), width=6, align="center"),
+                        dbc.Col(html.H5("Multi DESeq table"), width=3, align="center"),
+
+                        dbc.Col(
+                            [
+                                dcc.Dropdown(
+                                    id="filter-table-updown",
+                                    clearable=True,
+                                    persistence=True,
+                                    persistence_type="session"
+
+                                ),
+
+
+                            ],
+                            width=3
+
+                        ),
+                        dbc.Col(
+                            [
+                                dcc.Dropdown(
+                                    options=["in", "exclusive in"],
+                                    value="in",
+                                    id="filter-table-operation",
+                                    clearable=False,
+                                    persistence=True,
+                                    persistence_type="session"
+
+                                ),
+
+                            ],
+                            width=1
+
+                        ),
+                        dbc.Col(
+                            dcc.Dropdown(
+                                id="filter-table-sets",
+
+                                clearable=True,
+                                multi=True,
+                                persistence=True,
+                                persistence_type="session",
+
+                            ),
+                            width=5
+                        ),
+
                     ],
                     justify="between"
                 ),
@@ -95,9 +141,9 @@ def get_table():
                     dbc.Col(
                         dash_table.DataTable(
                             id='datasets-table',
-                            filter_action="native",
+                            filter_action="custom",
                             filter_options={"case": "insensitive"},
-                            sort_action="native",
+                            sort_action="custom",
                             sort_mode="multi",
                             column_selectable="single",
                             row_selectable="multi",
@@ -105,7 +151,8 @@ def get_table():
                             merge_duplicate_headers=True,
                             selected_columns=[],
                             selected_rows=[],
-                            page_action="native",
+                            page_action="custom",
+
                             page_current=0,
                             page_size=10,
                             style_as_list_view=True,
@@ -316,6 +363,8 @@ def plot_upset_down(datasets, switch, comp):
     Output("plot-hover-name-dd", "value"),
     Output("down-reg-header", "children"),
     Output("up-reg-header", "children"),
+    Output("filter-table-updown", "options"),
+    Output("filter-table-updown", "value"),
     Input("comparison-hash-dd", "value"),
 
 )
@@ -327,27 +376,193 @@ def update_name_selection(comp):
     data = DASH_DATA[0][datasets[0]]["comparisons"][comp]
     condition = data["condition"]
     baseline = data["baseline"]
-    return options, options[0], f"Upset plot - {baseline}", f"Upset plot - {condition}"
+    tableoptions = [condition, baseline]
+    return options, options[0], f"Upset plot - {baseline}", f"Upset plot - {condition}", tableoptions, None
+
+
+@callback(
+    Output("filter-table-sets", "options"),
+    Output("filter-table-sets", "value"),
+    Input("dataset-compare-dd", "value"),
+    State("filter-table-sets", "value"),
+
+)
+def update_set_selection(datasets, selected_sets):
+    if datasets is None:
+        return dash.no_update
+    selected = None
+    if selected_sets is not None:
+        selected = selected_sets if all(ds in datasets for ds in selected_sets) else None
+    return datasets, selected
+
+
+@callback(
+    Output("filter-table-sets", "value", allow_duplicate=True),
+    Output("filter-table-updown", "value", allow_duplicate=True),
+    Output("filter-table-operation", "value", allow_duplicate=True),
+    Input("upset-up-graph", "clickData"),
+    State("dataset-compare-dd", "value"),
+    State("comparison-hash-dd", "value"),
+    prevent_initial_call=True
+
+)
+def update_set_on_click(click_data, datasets, comp):
+    if click_data is None:
+        return dash.no_update
+    s = click_data["points"][0]["x"]
+    if isinstance(s, int):
+        return dash.no_update
+    else:
+        sets = s.split("<br>")
+    upreg = DASH_DATA[0][datasets[0]]["comparisons"][comp]["condition"]
+    return sets, upreg, "exclusive in"
+
+@callback(
+    Output("filter-table-sets", "value", allow_duplicate=True),
+    Output("filter-table-updown", "value", allow_duplicate=True),
+    Output("filter-table-operation", "value", allow_duplicate=True),
+
+    Input("upset-down-graph", "clickData"),
+    State("dataset-compare-dd", "value"),
+    State("comparison-hash-dd", "value"),
+    prevent_initial_call=True
+
+)
+def update_set_on_click(click_data, datasets, comp):
+    if click_data is None:
+        return dash.no_update
+    s = click_data["points"][0]["x"]
+    if isinstance(s, int):
+        return dash.no_update
+    else:
+        sets = s.split("<br>")
+    upreg = DASH_DATA[0][datasets[0]]["comparisons"][comp]["baseline"]
+    return sets, upreg, "exclusive in"
+
+operators = [
+    ['contains '],
+    ['ge ', '>='],
+    ['le ', '<='],
+    ['lt ', '<'],
+    ['gt ', '>'],
+    ['ne ', '!='],
+    ['eq ', '='],
+    ['datestartswith ']
+]
+
+
+def split_filter_part(filter_part):
+    for operator_type in operators:
+        for operator in operator_type:
+            if operator in filter_part:
+                name_part, value_part = filter_part.split(operator, 1)
+                print(name_part, value_part, "vname")
+                name = name_part[name_part.find('{') + 1: name_part.rfind('}')]
+
+                value_part = value_part.strip()
+                v0 = value_part[0]
+                if (v0 == value_part[-1] and v0 in ("'", '"', '`')):
+                    value = value_part[1: -1].replace('\\' + v0, v0)
+                else:
+                    try:
+                        value = float(value_part)
+                    except ValueError:
+                        value = value_part
+
+                # word operators need spaces after them in the filter string,
+                # but we don't want these later
+                return name, operator_type[0].strip(), value
+
+    return [None] * 3
 
 @callback(
     Output("datasets-table", "columns"),
     Output("datasets-table", "data"),
+    Output("datasets-table", "page_count"),
     Input("dataset-compare-dd", "value"),
-    State("comparison-hash-dd", "value")
+    Input("filter-table-sets", "value"),
+    Input("filter-table-updown", "value"),
+    Input("filter-table-operation", "value"),
+    Input('datasets-table', "page_current"),
+    Input('datasets-table', "page_size"),
+    Input('datasets-table', 'sort_by'),
+    Input('datasets-table', 'filter_query'),
+    State("comparison-hash-dd", "value"),
 )
-def update_datasets_table(datasets, comp):
+def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_page, page_size, sort_by, filter_query, comp):
+
     if datasets is None:
         return None, None
     idx = pd.IndexSlice
     df = DASH_DATA[1][comp]
-    df = df.loc[:, idx[["Name", "Additional Data"] + datasets, :]]
+    df["id"] = range(len(df))
 
+    df = df.loc[:, idx[["id", "Name", "Additional Data"] + datasets, :]]
+    exclusive = filter_op == "exclusive in"
+    if filter_set is not None and len(filter_set) == 0:
+        filter_set = None
+    if filter_ud and filter_set:
+        upreg = DASH_DATA[0][datasets[0]]["comparisons"][comp]["condition"] == filter_ud
+        padj_cutoff = DASH_DATA[0][datasets[0]]["config"]["pAdjCutOff"]
+        lfc_cutoff = DASH_DATA[0][datasets[0]]["config"]["log2FCCutOff"]
+        idx = pd.IndexSlice
+        others = list(set(datasets) - set(filter_set))
+        lfc_idx = idx[datasets, ('log2FoldChange')]
+        pad_idx = idx[datasets, ('padj')]
+        lfc_df = df.loc[:, lfc_idx].droplevel(1, axis=1)
+        padj_df = df.loc[:, pad_idx].droplevel(1, axis=1)
+        if upreg:
+            set_idx = np.all((lfc_df.loc[:, filter_set] >= lfc_cutoff) & (padj_df.loc[:, filter_set] <= padj_cutoff), axis=1)
+            if exclusive:
+                other_idx = np.any((lfc_df.loc[:, others] >= lfc_cutoff) & (padj_df.loc[:, others] <= padj_cutoff), axis=1)
+                set_idx = (set_idx & ~other_idx)
+
+        else:
+            lfc_cutoff = -lfc_cutoff
+            set_idx = np.all((lfc_df.loc[:, filter_set] <= lfc_cutoff) & (padj_df.loc[:, filter_set] <= padj_cutoff),
+                             axis=1)
+            if exclusive:
+                other_idx = np.any((lfc_df.loc[:, others] <= lfc_cutoff) & (padj_df.loc[:, others] <= padj_cutoff), axis=1)
+                set_idx = (set_idx & ~other_idx)
+        df = df[set_idx]
+    page_count = (df.shape[0] // page_size) + 1
+    if filter_query:
+        filtering_expressions = filter_query.split(' && ')
+        for filter_part in filtering_expressions:
+            col_name, operator, filter_value = split_filter_part(filter_part)
+            col_name = tuple(col_name.split("_"))
+
+
+            if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
+                # these operators match pandas series operator method names
+                df = df.loc[getattr(df[col_name], operator)(filter_value)]
+            elif operator == 'contains':
+                print(col_name)
+                df = df.loc[df[col_name].str.contains(filter_value) == True]
+            elif operator == 'datestartswith':
+                # this is a simplification of the front-end filtering logic,
+                # only works with complete fields in standard format
+                df = df.loc[df[col_name].str.startswith(filter_value)]
+    if sort_by:
+        for i, col in enumerate(sort_by):
+            sort_by[i]["column_id"] = tuple(col["column_id"].split("_"))
+        if len(sort_by):
+            sort_vals = [col['column_id'] for col in sort_by]
+            df = df.sort_values(
+                sort_vals,
+                ascending=[
+                    col['direction'] == 'asc'
+                    for col in sort_by
+                ],
+                inplace=False
+            )
+    df = df.iloc[current_page*page_size:(current_page+ 1)*page_size]
     columns = [
-        {"name": i, "id": "_".join(i), "deletable": False, "selectable": False, "format": Format(precision=4), "type": "numeric" if is_numeric_dtype(df[i]) else "text"
+        {"name": i, "id": "_".join(i) if i[0] != "id" else "id", "deletable": False, "selectable": False, "format": Format(precision=4), "type": "numeric" if is_numeric_dtype(df[i]) else "text"
          } for i in df.columns
     ]
-    data = [{"_".join(col): val for col, val in row.items()} for row in df.to_dict('records')]
-    return columns, data
+    data = [{"_".join(col) if col[0] != "id" else "id": val for col, val in row.items()} for row in df.to_dict('records')]
+    return columns, data, page_count
 
 
 @callback(
@@ -359,7 +574,6 @@ def update_datasets_table(datasets, comp):
 )
 def update_selectable_datasets(comp, dd_state):
     sets = get_datasets_with_comp(comp)
-    print(dd_state, "dd-state")
     if dd_state is not None:
         selected = dd_state if all([v in sets for v in dd_state]) else sets
     else:
@@ -370,7 +584,7 @@ def update_selectable_datasets(comp, dd_state):
 
 @callback(
     Output("gene-line-graph", "figure"),
-    Input("datasets-table", "selected_rows"),
+    Input("datasets-table", "derived_virtual_selected_row_ids"),
     Input("dataset-compare-dd", "value"),
     Input("mode-switch", "value"),
     Input("plot-hover-name-dd", "value"),
@@ -380,6 +594,7 @@ def update_selectable_datasets(comp, dd_state):
 )
 def update_line_plot(sel_rows, datasets, switch, legend_name, comp):
     plot = False
+    print(sel_rows, "sel_rows", dash.ctx.triggered_prop_ids)
     if datasets is None or len(datasets) == 0:
         fig = empty_figure("No dataset selected")
     elif sel_rows is None or len(sel_rows) == 0:

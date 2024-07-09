@@ -28,6 +28,8 @@ def read_files(config):
     if config["add_data"]:
         add_data = config["add_data"]
         add_data = pd.read_csv(add_data, sep="\t", index_col=0)
+        add_data.columns = add_data.columns.str.replace('_', ' ')
+
     else:
         add_data = None
 
