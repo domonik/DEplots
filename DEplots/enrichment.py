@@ -122,7 +122,7 @@ def plot_gsea(
     fig_old = px.line(df, x="x", y="runningScore", color='Description', hover_data=hover_data)
     hovertemplate = '<i>Y</i>: %{y:.2f}' + \
                     '<br><b>X</b>: %{x}<br>' + \
-                    '<b>%{text}</b>'
+                    '<b>%{hovertext}</b>'
     to_display = min(len(d), len(colors))
     fig = make_subplots(
         rows=to_display + 1, shared_xaxes=True, vertical_spacing=0,

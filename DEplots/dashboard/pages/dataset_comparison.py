@@ -558,8 +558,14 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
             )
     df = df.iloc[current_page*page_size:(current_page+ 1)*page_size]
     columns = [
-        {"name": i, "id": "_".join(i) if i[0] != "id" else "id", "deletable": False, "selectable": False, "format": Format(precision=4), "type": "numeric" if is_numeric_dtype(df[i]) else "text"
-         } for i in df.columns
+        {
+            "name": i,
+            "id": "_".join(i) if i[0] != "id" else "id",
+            "deletable": False,
+            "selectable": False,
+            "format": Format(precision=4),
+            "type": "numeric" if is_numeric_dtype(df[i]) else "text"
+        } for i in df.columns if i[0] != "id"
     ]
     data = [{"_".join(col) if col[0] != "id" else "id": val for col, val in row.items()} for row in df.to_dict('records')]
     return columns, data, page_count
