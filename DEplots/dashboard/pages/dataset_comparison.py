@@ -538,7 +538,7 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
                 df = df.loc[getattr(df[col_name], operator)(filter_value)]
             elif operator == 'contains':
                 print(col_name)
-                df = df.loc[df[col_name].str.contains(filter_value) == True]
+                df = df.loc[df[col_name].str.contains(filter_value, case=False) == True]
             elif operator == 'datestartswith':
                 # this is a simplification of the front-end filtering logic,
                 # only works with complete fields in standard format
