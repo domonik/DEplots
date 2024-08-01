@@ -525,7 +525,6 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
                 other_idx = np.any((lfc_df.loc[:, others] <= lfc_cutoff) & (padj_df.loc[:, others] <= padj_cutoff), axis=1)
                 set_idx = (set_idx & ~other_idx)
         df = df[set_idx]
-    page_count = (df.shape[0] // page_size) + 1
     if filter_query:
         filtering_expressions = filter_query.split(' && ')
         for filter_part in filtering_expressions:
@@ -537,8 +536,7 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
                 # these operators match pandas series operator method names
                 df = df.loc[getattr(df[col_name], operator)(filter_value)]
             elif operator == 'contains':
-                print(col_name)
-                df = df.loc[df[col_name].str.contains(filter_value, case=False) == True]
+                df = df.loc[df[col_name].astype(str).str.contains(filter_value, case=False) == True]
             elif operator == 'datestartswith':
                 # this is a simplification of the front-end filtering logic,
                 # only works with complete fields in standard format
@@ -556,6 +554,7 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
                 ],
                 inplace=False
             )
+    page_count = (df.shape[0] // page_size) + 1
     df = df.iloc[current_page*page_size:(current_page+ 1)*page_size]
     columns = [
         {
