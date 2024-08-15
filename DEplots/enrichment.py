@@ -144,7 +144,7 @@ def plot_gsea(
             data.update(marker=dict(color=colors[idx]), line=dict(color=colors[idx]))
             fig.add_trace(data, row=1, col=1)
     for idx, desc in enumerate(d, 1):
-        if idx < len(colors):
+        if idx <= len(colors):
             sdf = df[df["Description"] == desc]
             sdf = sdf[sdf["position"] != 0]
             y = sdf["position"]
