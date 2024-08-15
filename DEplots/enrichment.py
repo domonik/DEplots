@@ -100,7 +100,8 @@ def plot_gsea(
         show_zero_lfc: bool = False,
         condition_name: str = None,
         base_name: str = None,
-        gene_list_name: str = None
+        gene_list_name: str = None,
+        **kwargs
 
 ):
     if gene_list_name:
@@ -124,9 +125,12 @@ def plot_gsea(
                     '<br><b>X</b>: %{x}<br>' + \
                     '<b>%{hovertext}</b>'
     to_display = min(len(d), len(colors))
+
+    if "row_heights" not in kwargs:
+        kwargs["row_heights"] = [0.6] + [0.4 / to_display for _ in range(to_display)]
     fig = make_subplots(
-        rows=to_display + 1, shared_xaxes=True, vertical_spacing=0,
-        row_heights=[0.6] + [0.4 / to_display for _ in range(to_display)]
+        rows=to_display + 1, shared_xaxes=True,
+        **kwargs
     )
     df[df["position"] == 0]["position"] = np.nan
     check = df[df[gene_list_name] == 0]
