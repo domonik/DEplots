@@ -59,8 +59,8 @@ def volcano_from_deseq_result(
         showlegend=True
     ))
     fig.data = fig.data[::-1]
-    if lfc_cut_off is not None and padj_cutoff is not None:
-        fig = add_boxes(fig, lfc_cut_off, padj_cutoff, highlight_up_color, highlight_down_color, opacity)
+    if lfc_cutoff is not None and padj_cutoff is not None:
+        fig = add_boxes(fig, lfc_cutoff, padj_cutoff, highlight_up_color, highlight_down_color, opacity)
     fig.update_xaxes(
         range=[min_fc, max_fc],
         dtick=1,
