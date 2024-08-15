@@ -8,7 +8,7 @@ def volcano_from_deseq_result(
         deseq_result: pd.DataFrame,
         name_col: str = None,
         highlight: Dict[str, Tuple[str, str]] = None,
-        lfc_cut_off: float = None,
+        lfc_cutoff: float = None,
         padj_cutoff: float = None,
         condition_name: str = None,
         base_name: str = None,
@@ -63,10 +63,18 @@ def volcano_from_deseq_result(
         fig = add_boxes(fig, lfc_cut_off, padj_cutoff, highlight_up_color, highlight_down_color, opacity)
     fig.update_xaxes(
         range=[min_fc, max_fc],
-        dtick=1
+        dtick=1,
+        autorangeoptions=dict(
+            clipmax=max_fc,
+            clipmin=min_fc
+        )
     )
     fig.update_yaxes(
         range=[-0.5, max_log10padj],
+        autorangeoptions=dict(
+            clipmax=max_log10padj,
+            clipmin=-0.5
+        )
     )
     fig.update_layout(
         xaxis_title="Log2FoldChange",
