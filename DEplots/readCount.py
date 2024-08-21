@@ -6,6 +6,7 @@ from plotly.colors import DEFAULT_PLOTLY_COLORS
 import plotly.express as px
 import pandas as pd
 import re
+from typing import Dict
 
 from DEplots.gff_helper import read_gff3, filter_gff_by_interval, find_gene_coordinates, coords_from_gff_row
 
@@ -145,41 +146,33 @@ def get_trace(file, name, color, strand: str = None, size_factor: float = None, 
     return trace
 
 
-def get_summary_trace(files, name, color, strand, size_factors = None, **kwargs):
-    t = []
-    for idx, file in enumerate(files):
-        samfile = pysam.AlignmentFile(file, "rb")
-        y = samfile.count_coverage(read_callback=filter_strand(strand), **kwargs)
-        y = np.asarray(y).sum(axis=0)
-        if size_factors:
-            y = y * size_factors[idx]
-
-        t.append(y)
-    y = np.asarray(t)
+def _sum_trace(y, color, name, start):
     mean_y = np.mean(y, axis=0)
     median_y = np.median(y, axis=0)
     q25 = np.quantile(y, q=0.25, axis=0)
     q75 = np.quantile(y, q=0.75, axis=0)
     quantiles = np.concatenate((q75, np.flip(q25)), axis=0)
-    s = kwargs["start"] if "start" in kwargs else 0
-    x = np.arange(s, s + len(mean_y))
+    x = np.arange(start, start + len(mean_y))
     qx = np.concatenate((x, np.flip(x)), axis=0)
 
     traces = [
         go.Scatter(
             x=x,
             y=median_y,
-            name=f"{name} - Median",
+            name=f"Median",
             line=dict(dash="dot", color=color),
             mode="lines",
+            legendgroup=name,
+            legendgrouptitle=dict(text=name),
 
         ),
         go.Scatter(
             x=x,
             y=mean_y,
-            name=f"{name} - Mean",
+            name=f"Mean",
             line=dict(color=color),
             mode="lines",
+            legendgroup=name
 
         )
     ]
@@ -190,22 +183,141 @@ def get_summary_trace(files, name, color, strand, size_factors = None, **kwargs)
             x=qx,
             y=quantiles,
             marker=dict(color=color),
-            name=f"{name} Q.25-Q.75",
+            name=f"Q.25-Q.75",
             fill="toself",
             fillcolor=a_color,
-            line=dict(color='rgba(255,255,255,0)')
+            line=dict(color='rgba(255,255,255,0)'),
+            legendgroup=name
+
         )
     ]
     return traces, errors
 
 
-def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = None, colors = None, mode: str = "replicate", gff: pd.DataFrame = None, gff_types = None, gff_name: str = "locus_tag", type_colors = None, **kwargs):
-    if colors is None:
-        colors = DEFAULT_PLOTLY_COLORS
+def get_summary_trace(files, name, color, strand, size_factors=None, **kwargs):
+    t = []
+    start = kwargs["start"] if "start" in kwargs else 0
+    for idx, file in enumerate(files):
+        samfile = pysam.AlignmentFile(file, "rb")
+        y = samfile.count_coverage(read_callback=filter_strand(strand), **kwargs)
+        y = np.asarray(y).sum(axis=0)
+        if size_factors:
+            y = y * size_factors[idx]
+
+        t.append(y)
+    y = np.asarray(t)
+    traces, errors = _sum_trace(y, color, name, start)
+
+    return traces, errors
+
+
+def _add_gff_entries(gff, gff_name, wstart, wend, type_colors):
     if type_colors is None:
         type_colors = GFF3_TYPE_TO_COLOR
     else:
         type_colors = GFF3_TYPE_TO_COLOR | type_colors
+    gff = gff[~gff[gff_name].isna()]
+    indices = {name: idx for idx, name in enumerate(gff[gff_name].unique())}
+    traces, annotations = [], []
+    for (_, row) in gff.iterrows():
+        idx = indices[row[gff_name]]
+        v = 0.4
+        arrow = 0.01
+        if row["strand"] == "+":
+            y = [idx - v, idx - v, idx, idx + v, idx + v, idx - v]
+            pe = max(row["end"] - arrow * (wend - wstart), row["start"])
+            x = [row["start"], pe, row["end"], pe, row["start"], row["start"]]
+        elif row["strand"] == "-":
+            y = [idx, idx - v, idx - v, idx + v, idx + v, idx]
+            ps = min(row["start"] + arrow * (wend - wstart), row["end"])
+            x = [row["start"], ps, row["end"], row["end"], ps, row["start"]]
+        else:
+            y = [idx - v, idx - v, idx + v, idx + v, idx - v]
+            x = [row["start"], row["end"], row["end"], row["start"], row["start"]]
+        try:
+            color = type_colors[row["type"]]
+        except KeyError:
+            color = type_colors["default"]
+        traces.append(
+            go.Scatter(
+                y=y,
+                x=x,
+                mode="lines",
+                fillcolor=color,
+                line=dict(color="black"),
+                fill="toself",
+                name=f'{row["type"]}-{row[gff_name]}',
+
+            ),
+
+        )
+        annotations.append(
+            dict(
+                text=f'{row["type"]}',
+                x=(row["end"] - row["start"]) / 2 + row["start"],
+                y=idx,
+                showarrow=False,
+            )
+
+        )
+    return traces, annotations, indices
+
+
+def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand,  colors=None):
+    tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "index": list})
+    if colors is None:
+        colors = DEFAULT_PLOTLY_COLORS
+    traces = []
+    errors = []
+    for idx, row in tmp.iterrows():
+        name = row["Treatment"]
+        color = colors[idx]
+        y = coverages[contig][strand][row["index"], wstart:wend]
+        t, e = _sum_trace(y, color, name, wstart)
+        traces += t
+        errors += e
+    return traces, errors
+
+
+def plot_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, gff, gff_name, colors=None, type_colors=None, **kwargs):
+    fig = make_subplots(rows=3, shared_xaxes=True, **kwargs)
+    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "+", colors)
+    fig.add_traces(traces, rows=1, cols=1)
+    fig.add_traces(errors, rows=1, cols=1)
+
+    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "-", colors)
+    for trace in traces:
+        trace.update(showlegend=False)
+    for error in errors:
+        error.update(showlegend=False)
+    fig.add_traces(traces, rows=3, cols=1)
+    fig.add_traces(errors, rows=3, cols=1)
+    gff = filter_gff_by_interval(gff, contig, wstart, wend)
+    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors)
+    fig.add_traces(
+        gff_traces,
+        rows=2,
+        cols=1
+    )
+    for anno in annotations:
+        fig.add_annotation(
+            anno,
+            row=2, col=1
+        )
+    fig.update_xaxes(range=[wstart, wend])
+    fig.update_yaxes(
+        tickvals=list(range(len(indices))),
+        ticktext=list(indices.keys()),
+        tickmode="array",
+        row=2
+    )
+    fig.show()
+
+
+
+def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = None, colors = None, mode: str = "replicate", gff: pd.DataFrame = None, gff_types = None, gff_name: str = "locus_tag", type_colors = None, **kwargs):
+    if colors is None:
+        colors = DEFAULT_PLOTLY_COLORS
     sf = True if "Size factors" in design else False
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, **kwargs)
@@ -248,53 +360,17 @@ def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = N
             rows=1,
             cols=1
         )
-    gff = gff[~gff[gff_name].isna()]
-    indices = {name: idx for idx, name in enumerate(gff[gff_name].unique())}
-    for (_, row) in gff.iterrows():
-        idx = indices[row[gff_name]]
-        v = 0.4
-        arrow = 0.01
-        if row["strand"] == "+":
-            y = [idx - v, idx-v, idx, idx+v, idx+v, idx - v]
-            pe = row["end"] - arrow * (wend - wstart)
-            x = [row["start"], pe, row["end"], pe, row["start"], row["start"]]
-        elif row["strand"] == "-":
-            y = [idx, idx - v, idx - v, idx + v, idx + v, idx]
-            ps = row["start"] + arrow * (wend - wstart)
-            x = [row["start"], ps, row["end"], row["end"], ps, row["start"]]
-        else:
-            y = [idx - v, idx - v, idx + v, idx + v, idx - v]
-            x = [row["start"], row["end"], row["end"], row["start"], row["start"]]
-        try:
-            color = type_colors[row["type"]]
-        except KeyError:
-            color = type_colors["default"]
-        fig.add_trace(
-            go.Scatter(
-                y=y,
-                x=x,
-                mode="lines",
-                fillcolor=color,
-                line=dict(color="black"),
-                fill="toself",
-                name=f'{row["type"]}-{row[gff_name]}',
-
-            ),
-            row=2,
-            col=1
-
-        )
+    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors)
+    fig.add_traces(
+        gff_traces,
+        rows=2,
+        cols=1
+    )
+    for anno in annotations:
         fig.add_annotation(
-            text=f'{row["type"]}',
-            x=(row["end"] - row["start"]) / 2 + row["start"],
-            y=idx,
-            row=2,
-            col=1,
-            showarrow=False,
-
+            anno,
+            row=2, col=1
         )
-
-
 
     fig.update_xaxes(range=[wstart, wend])
     fig.update_yaxes(
@@ -306,54 +382,98 @@ def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = N
     return fig
 
 
+def precompute_from_design(design):
+    coverage = {
+
+    }
+    m_idx = design["index"].max() + 1
+    for idx, row in design.iterrows():
+        file = row["File"]
+        index = row["index"]
+        samfile = pysam.AlignmentFile(file, "rb")
+        for contig in samfile.references:
+            yp = samfile.count_coverage(contig=contig, read_callback=filter_strand("+"))
+            ym = samfile.count_coverage(contig=contig, read_callback=filter_strand("-"))
+            yp = np.asarray(yp).sum(axis=0)
+            ym = np.asarray(ym).sum(axis=0)
+            if "Size factors" in design.columns:
+                yp *= row["Size factors"]
+                ym *= row["Size factors"]
+            if contig not in coverage:
+                coverage[contig] = {"+": np.empty((m_idx, yp.shape[0])), "-": np.empty((m_idx, ym.shape[0]))}
+            coverage[contig]["+"][index] = yp
+            coverage[contig]["-"][index] = ym
+    return coverage
+
 if __name__ == '__main__':
 
     chr = "BA000022.2"
     start = 7179
     stop = 8311
+    import os
 
-    file = "../testData/19_-P_M_R3_S16_UMI_included.fastq.gz.bam"
-    file2 = "../testData/28_-P_M_R4_S19_UMI_included.fastq.gz.bam"
-    file3 = "../testData/1_-P_M_R1_S13_UMI_included.fastq.gz.bam"
-    file4 = "../testData/5_-P_C_R1_S14_UMI_included.fastq.gz.bam"
-    file5 = "../testData/32_-P_C_R4_S20_UMI_included.fastq.gz.bam"
-    file6 = "../testData/23_-P_C_R3_S17_UMI_included.fastq.gz.bam"
-    files = [
-        file,
-        file2,
-        file3,
-        file4,
-        file5,
-        file6,
-    ]
+    files = [os.path.join("../testData/files/", file) for file in os.listdir("../testData/files/") if file.endswith(".bam")]
+
     design = {
         "File": [],
         "Replicate": [],
         "Treatment": [],
 
     }
+    coverage = {
+    }
+    tmp = []
     for file in files:
-        s = file.split("_")
-        rep = s[3]
-        treat = s[2]
+        s = os.path.basename(file)
+        s = s.split("_")
+        if len(s) == 8:
+            rep = s[4]
+            treat = f"+p {s[3]}"
+            if treat == "+p TC":
+                continue
+        elif len(s) == 7:
+            rep = s[3]
+            treat = f"-p {s[2]}"
+        else:
+            rep = s[-1].split(".")[0]
+            treat = s[0] + "_" + s[1]
+            continue
+            # if "totalRNA" in treat:
+            #     continue
         design["Replicate"].append(rep)
         design["Treatment"].append(treat)
         design["File"].append(file)
 
+
     design = pd.DataFrame(design)
+    design["index"] = list(range(len(design)))
+
+    import pickle
+    file = "pickled_cov.pckl"
+    if not os.path.exists(file):
+        coverage = precompute_from_design(design)
+
+        with open(file, "wb") as handle:
+            pickle.dump(coverage, handle)
+    else:
+        with open(file ,"rb") as handle:
+            coverage = pickle.load(handle)
     #design["Size factors"] = list(range(len(design)))
     gff = "../testData/20210217_syne_onlyUnique_withFeat.gff3"
-    lt2name = "../testData/lt2gname.tsv"
+    lt2name = "../testData/TableWithSequences.tsv"
     lt2name = pd.read_csv(lt2name, sep="\t")
     gff = read_gff3(gff)
-    gff = gff.merge(lt2name, on="locus_tag")
-    sl = "psaF"
+    gff = gff.merge(lt2name, on="locus_tag", how="left")
+    gff.loc[gff.gene_name.isna(), "gene_name"] = gff.loc[gff.gene_name.isna()].locus_tag
+    sl = "psba2"
     d = find_gene_coordinates(gff, gene=sl, anno_type="gene_name")
     #d = d.iloc[1]
-    d = d[d["type"] == "CDS"]
+    #d = d[d["type"] == "CDS"]
     for _, row in d.iterrows():
         _, start, stop, strand = coords_from_gff_row(row)
-        fig = plot_coverage(design, chr, start, stop, extend=1000, strand=strand, mode="f", gff=gff, gff_types=None,
+        plot_precomputed_coverage(design, contig=chr, coverages=coverage, wstart=7000, wend=9000,gff=gff, gff_name="gene_name")
+        exit()
+        fig = plot_coverage(design, chr, start, stop, extend=3000, strand=strand, mode="f", gff=gff, gff_types=None,
                             gff_name="gene_name",
                             colors=None,  # ("rgb(0, 142, 151)", "rgb(252, 76, 2)"),
                             type_colors={"CDS": "rgb(252, 76, 2)"},

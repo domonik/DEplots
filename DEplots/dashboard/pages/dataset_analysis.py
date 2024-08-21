@@ -679,7 +679,7 @@ def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, swi
         df,
         highlight=highlight,
         name_col=name_col,
-        lfc_cut_off=config["log2FCCutOff"],
+        lfc_cutoff=config["log2FCCutOff"],
         padj_cutoff=config["pAdjCutOff"],
         condition_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"],
         base_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"],
