@@ -37,6 +37,9 @@ GFF3_TYPE_TO_COLOR = {
     "repeat_region": px.colors.qualitative.Light24[11],
     "default": "#7CB9E8"
 }
+DO_NOT_ANNOTATE = [
+   key for key in GFF3_TYPE_TO_COLOR.keys() if "UTR" in key or "codon" in key
+]
 
 
 def hex_to_rgb(hex_color):
@@ -146,14 +149,18 @@ def get_trace(file, name, color, strand: str = None, size_factor: float = None, 
     return trace
 
 
-def _sum_trace(y, color, name, start):
+def _sum_trace(y, color, name, start, step: int = 1):
+    x = np.arange(start, start + y.shape[-1])
+    x = x[::step]
+    qx = np.concatenate((x, np.flip(x)), axis=0)
+    y = np.apply_along_axis(lambda m: np.convolve(m, step, mode="same"), axis=-1, arr=y)
+    y = y[:, ::step]
     mean_y = np.mean(y, axis=0)
     median_y = np.median(y, axis=0)
     q25 = np.quantile(y, q=0.25, axis=0)
     q75 = np.quantile(y, q=0.75, axis=0)
     quantiles = np.concatenate((q75, np.flip(q25)), axis=0)
-    x = np.arange(start, start + len(mean_y))
-    qx = np.concatenate((x, np.flip(x)), axis=0)
+
 
     traces = [
         go.Scatter(
@@ -210,26 +217,54 @@ def get_summary_trace(files, name, color, strand, size_factors=None, **kwargs):
 
     return traces, errors
 
+def _compute_lines(df):
+    lines = []
+    df = df.sort_values(by=["strand", 'start'])
 
-def _add_gff_entries(gff, gff_name, wstart, wend, type_colors):
+    # List to hold line assignments
+    df['line'] = np.nan
+
+    for idx, row in df.iterrows():
+        start, end = row['start'], row['end']
+        placed = False
+
+        # Try to place the span in an existing line
+        for i, line_end in enumerate(lines):
+            if start > line_end:
+                df.at[idx, 'line'] = i
+                lines[i] = end
+                placed = True
+                break
+
+        # If no suitable line was found, create a new line
+        if not placed:
+            df.at[idx, 'line'] = len(lines)
+            lines.append(end)
+    df["line"] = df["line"].astype(int)
+    return df
+
+def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
     if type_colors is None:
         type_colors = GFF3_TYPE_TO_COLOR
     else:
         type_colors = GFF3_TYPE_TO_COLOR | type_colors
     gff = gff[~gff[gff_name].isna()]
-    indices = {name: idx for idx, name in enumerate(gff[gff_name].unique())}
+    gff = _compute_lines(gff)
     traces, annotations = [], []
+    v = 0.4
+    if arrow_size is None:
+        arrow_size = 0.01 * (wend - wstart)
+
     for (_, row) in gff.iterrows():
-        idx = indices[row[gff_name]]
-        v = 0.4
-        arrow = 0.01
+        idx = row["line"]
+
         if row["strand"] == "+":
             y = [idx - v, idx - v, idx, idx + v, idx + v, idx - v]
-            pe = max(row["end"] - arrow * (wend - wstart), row["start"])
+            pe = max(row["end"] - arrow_size, row["start"])
             x = [row["start"], pe, row["end"], pe, row["start"], row["start"]]
         elif row["strand"] == "-":
             y = [idx, idx - v, idx - v, idx + v, idx + v, idx]
-            ps = min(row["start"] + arrow * (wend - wstart), row["end"])
+            ps = min(row["start"] + arrow_size, row["end"])
             x = [row["start"], ps, row["end"], row["end"], ps, row["start"]]
         else:
             y = [idx - v, idx - v, idx + v, idx + v, idx - v]
@@ -251,19 +286,21 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors):
             ),
 
         )
-        annotations.append(
-            dict(
-                text=f'{row["type"]}',
-                x=(row["end"] - row["start"]) / 2 + row["start"],
-                y=idx,
-                showarrow=False,
+
+        if row["type"] not in DO_NOT_ANNOTATE:
+            annotations.append(
+                dict(
+                    text=f'{row[gff_name]}',
+                    x=(row["end"] - row["start"]) / 2 + row["start"],
+                    y=idx,
+                    showarrow=False,
+                )
+
             )
-
-        )
-    return traces, annotations, indices
+    return traces, annotations, gff["line"]
 
 
-def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand,  colors=None):
+def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand, step, colors=None):
     tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "index": list})
     if colors is None:
         colors = DEFAULT_PLOTLY_COLORS
@@ -273,19 +310,33 @@ def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.nda
         name = row["Treatment"]
         color = colors[idx]
         y = coverages[contig][strand][row["index"], wstart:wend]
-        t, e = _sum_trace(y, color, name, wstart)
+        t, e = _sum_trace(y, color, name, wstart, step)
         traces += t
         errors += e
     return traces, errors
 
 
-def plot_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, gff, gff_name, colors=None, type_colors=None, **kwargs):
+def plot_precomputed_coverage(
+        design,
+        contig, coverages: Dict[str, np.ndarray],
+        wstart,
+        wend,
+        gff,
+        gff_name,
+        colors=None,
+        type_colors=None,
+        arrow_size=None,
+        step: int = 1,
+        show_annotations: bool = True,
+        **kwargs):
+    wstart = max(int(wstart), 0)
+    wend = min(int(wend), coverages[contig]["+"].shape[-1])
     fig = make_subplots(rows=3, shared_xaxes=True, **kwargs)
-    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "+", colors)
+    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "+", step, colors)
     fig.add_traces(traces, rows=1, cols=1)
     fig.add_traces(errors, rows=1, cols=1)
 
-    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "-", colors)
+    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "-", step, colors)
     for trace in traces:
         trace.update(showlegend=False)
     for error in errors:
@@ -293,25 +344,40 @@ def plot_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], 
     fig.add_traces(traces, rows=3, cols=1)
     fig.add_traces(errors, rows=3, cols=1)
     gff = filter_gff_by_interval(gff, contig, wstart, wend)
-    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors)
+    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
     fig.add_traces(
         gff_traces,
         rows=2,
         cols=1
     )
-    for anno in annotations:
+    if show_annotations:
+        for anno in annotations:
+            fig.add_annotation(
+                anno,
+                row=2, col=1
+            )
+    fig.update_xaxes(
+        range=[wstart, wend],
+        minallowed=[wstart, wend],
+        maxallowed=coverages[contig]["+"].shape[-1]
+    )
+    m = indices.max()
+    if np.isnan(m):
         fig.add_annotation(
-            anno,
+            text="", showarrow=False,
             row=2, col=1
         )
-    fig.update_xaxes(range=[wstart, wend])
+        m = 2
     fig.update_yaxes(
-        tickvals=list(range(len(indices))),
-        ticktext=list(indices.keys()),
+        tickvals=list(range(m)),
+        ticktext=list(range(m)),
+        minallowed=-0.5,
+        maxallowed=m+0.5,
         tickmode="array",
-        row=2
+        showticklabels=False,
+        row=2,
     )
-    fig.show()
+    return fig
 
 
 
@@ -412,7 +478,7 @@ if __name__ == '__main__':
     stop = 8311
     import os
 
-    files = [os.path.join("../testData/files/", file) for file in os.listdir("../testData/files/") if file.endswith(".bam")]
+    files = [os.path.abspath(os.path.join("../testData/files/", file)) for file in os.listdir("../testData/files/") if file.endswith(".bam")]
 
     design = {
         "File": [],

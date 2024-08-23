@@ -1,7 +1,7 @@
 
 import os
 import dash
-from dash import Dash, html, dcc, clientside_callback, Input, Output, State, ALL
+from dash import Dash, html, dcc, clientside_callback, Input, Output, State, ALL, ClientsideFunction
 import dash_bootstrap_components as dbc
 
 FILEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -170,3 +170,35 @@ clientside_callback(
     Input("mode-switch", "value"),
 )
 
+
+# Clientside callback
+app.clientside_callback(
+    ClientsideFunction(
+        namespace="clientside",
+        function_name="set_fixedrange",
+    ),
+    Output("coverage-graph", "figure", allow_duplicate=True),
+    [
+        Input("autorange-y", "value"),
+        State('coverage-graph', 'figure'),
+
+    ],
+    prevent_initial_call=True,
+)
+
+
+# Clientside callback
+app.clientside_callback(
+    ClientsideFunction(
+        namespace="clientside",
+        function_name="autorange_graph",
+    ),
+    Output("coverage-graph", "figure", allow_duplicate=True),
+    [
+        Input("x-axis-range", "data"),
+        Input('coverage-graph', 'figure'),
+        State("autorange-y", "value"),
+
+    ],
+    prevent_initial_call=True,
+)

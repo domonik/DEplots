@@ -2,11 +2,14 @@ import yaml
 import os
 import pandas as pd
 from plotly import express as px
+import pickle
+from DEplots.readCount import precompute_from_design
+from DEplots.gff_helper import read_gff3
 
 DIRPATH = os.path.dirname(os.path.abspath(__file__))
 
 
-def get_data( config_file: str = None, run_dir: str = None,):
+def get_data(config_file: str = None, run_dir: str = None,):
     if config_file is None:
         config_file = os.path.join(DIRPATH, "default_config.yaml")
     with open(config_file, "r") as handle:
@@ -15,6 +18,32 @@ def get_data( config_file: str = None, run_dir: str = None,):
     if run_dir:
         config["run_dir"] = run_dir
     return read_files(config)
+
+
+def get_coverage_data(config_file):
+    if config_file is None:
+        config_file = os.path.join(DIRPATH, "default_config.yaml")
+    with open(config_file, "r") as handle:
+        config = yaml.safe_load(handle)
+
+    if not config["coverage"]["design"]:
+        return None, None, None
+    else:
+        design = pd.read_csv(config["coverage"]["design"], sep="\t")
+        design["index"] = list(range(len(design)))
+        file = config["coverage"]["precomputed_file"]
+
+        if not os.path.exists(file):
+            coverage = precompute_from_design(design)
+
+            with open(file, "wb") as handle:
+                pickle.dump(coverage, handle)
+        else:
+            with open(file, "rb") as handle:
+                coverage = pickle.load(handle)
+        gff = read_gff3(config["coverage"]["gff"])
+
+    return design, coverage, gff
 
 
 def read_files(config):
@@ -155,3 +184,6 @@ UP_COLOR_DARK = "#00a082"
 DOWN_COLOR_LIGHT = "#344A9A"
 DOWN_COLOR_DARK = "#f5c2ed"
 DASH_DATA = None
+COVERAGE_DATA = None
+COVERAGE_DESIGN = None
+GFF = None
