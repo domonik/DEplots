@@ -186,6 +186,23 @@ app.clientside_callback(
     prevent_initial_call=True,
 )
 
+app.clientside_callback(
+    ClientsideFunction(
+        namespace="clientside",
+        function_name="highlight_displayed",
+    ),
+    Output("placeholder1", "data", allow_duplicate=True),
+    [
+        Input("gff-table", "derived_viewport_indices"),
+        Input("coverage-start", "value"),
+        Input("coverage-end", "value"),
+        Input("contig", "value"),
+        Input("gff-table", "data"),
+
+    ],
+    prevent_initial_call=True,
+)
+
 
 # Clientside callback
 app.clientside_callback(

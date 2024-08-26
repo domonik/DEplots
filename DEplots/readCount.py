@@ -269,10 +269,7 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
         else:
             y = [idx - v, idx - v, idx + v, idx + v, idx - v]
             x = [row["start"], row["end"], row["end"], row["start"], row["start"]]
-        try:
-            color = type_colors[row["type"]]
-        except KeyError:
-            color = type_colors["default"]
+        color = type_colors.get(row["type"], type_colors["default"])
         traces.append(
             go.Scatter(
                 y=y,
@@ -328,6 +325,7 @@ def plot_precomputed_coverage(
         arrow_size=None,
         step: int = 1,
         show_annotations: bool = True,
+        show_features: bool = True,
         **kwargs):
     wstart = max(int(wstart), 0)
     wend = min(int(wend), coverages[contig]["+"].shape[-1])
@@ -343,25 +341,28 @@ def plot_precomputed_coverage(
         error.update(showlegend=False)
     fig.add_traces(traces, rows=3, cols=1)
     fig.add_traces(errors, rows=3, cols=1)
-    gff = filter_gff_by_interval(gff, contig, wstart, wend)
-    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
-    fig.add_traces(
-        gff_traces,
-        rows=2,
-        cols=1
-    )
-    if show_annotations:
-        for anno in annotations:
-            fig.add_annotation(
-                anno,
-                row=2, col=1
-            )
+    if show_features:
+        gff = filter_gff_by_interval(gff, contig, wstart, wend)
+        gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
+        fig.add_traces(
+            gff_traces,
+            rows=2,
+            cols=1
+        )
+        if show_annotations:
+            for anno in annotations:
+                fig.add_annotation(
+                    anno,
+                    row=2, col=1
+                )
+    else:
+        indices = np.nan
     fig.update_xaxes(
         range=[wstart, wend],
         minallowed=[wstart, wend],
         maxallowed=coverages[contig]["+"].shape[-1]
     )
-    m = indices.max()
+    m = indices.max() if show_features else np.nan
     if np.isnan(m):
         fig.add_annotation(
             text="", showarrow=False,

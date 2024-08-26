@@ -1,6 +1,6 @@
 import dash
 import pandas as pd
-from dash import Input, Output, State, html, dcc, callback, Patch
+from dash import Input, Output, State, html, dcc, callback, dash_table
 import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
@@ -9,6 +9,7 @@ from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST,
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF
 import numpy as np
 from DEplots.readCount import plot_precomputed_coverage
+import time
 
 
 if COVERAGE_DATA is not None:
@@ -53,11 +54,11 @@ def coverage_settings_card():
                         dbc.Row(
                             [
                                 dbc.Col(html.Span("Start"), width=6, md=3, className=SETTINGS_COL),
-                                dbc.Col(dbc.Input(id="coverage-start", type="number", value=0, min=0, step=1, className=SETTINGS_COL),
-                                        width=6, md=3),
+                                dbc.Col(dbc.Input(id="coverage-start", type="number", value=0, min=0, step=1,),
+                                        width=6, md=3,  className=SETTINGS_COL),
                                 dbc.Col(html.Span("End"), width=6, md=3,className=SETTINGS_COL),
-                                dbc.Col(dbc.Input(id="coverage-end", type="number", value=2000, min=0, step=1, className=SETTINGS_COL),
-                                        width=6, md=3),
+                                dbc.Col(dbc.Input(id="coverage-end", type="number", value=2000, min=0, step=1, ),
+                                        width=6, md=3, className=SETTINGS_COL),
                             ],
                             className=SETTINGS_ROW
 
@@ -106,6 +107,7 @@ def coverage_card():
                         style={"resize": "vertical", "overflow": "auto"},
                         config={
                             "scrollZoom": True,
+                            'modeBarButtonsToRemove': ['zoom', 'autoscale', "resetScale2d"]
 
                         }
                     ), width=12,
@@ -121,11 +123,94 @@ def coverage_card():
     return coverage_plot_card
 
 
+def gff_container():
+    data = GFF
+    data["id"] = data.index
+    data = data.to_dict('records')
+    cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
+    gff =  dbc.Col(
+        dbc.Card(
+            [
+                dbc.CardHeader(
+                    dbc.Row(
+                        [
+                            dbc.Col(html.H5("GFF"), width=6),
+                            dbc.Col(
+                                [
+                                    html.Div(html.Div(className="gff-legend2"), className="gff-legend"),
+                                    html.Span("Feature visible", className="ms-3"),
+
+                                ], width=6, className="d-flex align-items-center justify-content-end"),
+                        ]
+
+                    ),
+
+                ),
+                dbc.Col(
+                    dash_table.DataTable(
+                        id='gff-table',
+                        columns=cols,
+                        data=data,
+                        editable=True,
+                        filter_action="native",
+                        filter_options={"case": "insensitive"},
+                        sort_action="native",
+                        sort_mode="multi",
+                        column_selectable=False,
+                        merge_duplicate_headers=True,
+                        row_selectable=False,
+                        row_deletable=False,
+                        selected_columns=[],
+                        selected_rows=[],
+                        page_action="native",
+                        page_current=0,
+                        page_size=10,
+                        style_as_list_view=True,
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': 'var(--bs-secondary-bg)',
+                            },
+                            {
+                                'if': {'row_index': 'even'},
+                                'backgroundColor': 'var(--bs-tertiary-bg)',
+                            },
+
+                        ],
+                        style_header={
+                            'backgroundColor': 'var(--bs-secondary-bg)',
+                            'fontWeight': 'bold',
+                            "border": "none"
+                        },
+                        style_filter={
+                            'backgroundColor': 'var(--bs-secondary-bg)',
+                            'fontWeight': 'bold',
+                            "border": "none !important"
+
+                        },
+                        style_data={'border': 'none !important'}
+
+                    ),
+                    width=12,
+                    style={"overflow": "auto", 'backgroundColor': 'var(--bs-primary-bg)'},
+                    className="p-2"
+
+                ),
+
+            ],
+            className="shadow",
+        ),
+        width=12, md=6,
+    )
+    return gff
+
 def get_layout():
     lout = html.Div(
         [
             dcc.Store(id="x-axis-range", data={"xaxis.range[0]": 1, "xaxis.range[1]": 2000, "yaxis2.range[0]": -0.5, "y2axis.range[1]": 5.5}),
             dcc.Store(id="internal-axis-range", data=[0, 2000]),
+            dcc.Store(id="placeholder1", data=None),
+            dcc.Store(id="current-contig", data=None),
             dbc.Container(
                 [
                     dbc.Row(
@@ -134,10 +219,16 @@ def get_layout():
 
                     ),
                     dbc.Row(
-                        coverage_settings_card(),
+                        [
+                            coverage_settings_card(),
+
+                            gff_container(),
+                        ],
+
                         className="py-1"
 
                     ),
+
                 ],
                 fluid=True,
                 className="dbc"
@@ -174,6 +265,8 @@ def detect_relayout(new_lout, old_lout, internal_xaxis):
     if "xaxis.range[0]" in new_lout:
         start = max(int(new_lout["xaxis.range[0]"]), 0)
         end = int(new_lout["xaxis.range[1]"])
+        winsize = end - start
+        add_win = winsize * 0.25
 
         is_zoom = _is_zoom_relayout(old_lout, new_lout)
         if is_zoom:
@@ -184,7 +277,7 @@ def detect_relayout(new_lout, old_lout, internal_xaxis):
 
             return new_lout, start, end
         else: # now we need to determine if we moved outside the window_range
-            if new_lout["xaxis.range[1]"] > internal_xaxis[1] or new_lout["xaxis.range[0]"] < internal_xaxis[0]:
+            if new_lout["xaxis.range[1]"] > internal_xaxis[1] - add_win or new_lout["xaxis.range[0]"] < internal_xaxis[0] + add_win:
                 print("scrolled out of window")
                 new_lout["xaxis.range[0]"] = -1 # This forces the figure to replot
                 print(new_lout)
@@ -203,52 +296,79 @@ def _calc_internal_params(display_start, display_end):
     step = max(1, int((end - start) * 0.005))
     return [start, end], step
 
+@callback(
+    Output("coverage-start", "value", allow_duplicate=True),
+    Output("coverage-end", "value", allow_duplicate=True),
+    Output("contig", "value", allow_duplicate=True),
+    Input("gff-table", "active_cell"),
+    prevent_initial_call=True
+)
+def click_data_table(active_cell):
+    if active_cell is None:
+        raise dash.exceptions.PreventUpdate
+    data = GFF.iloc[active_cell["row_id"]]
+    start = max(data["start"] - 250, 0)
+    contig = data["seqid"]
+    end = min(COVERAGE_DATA[contig]["+"].shape[-1], data["end"] + 250)
+
+
+    return start, end, contig
+
 
 
 @callback(
     Output("coverage-start", "value"),
     Output("coverage-end", "value"),
-    Input("contig", "value")
+    Output("coverage-end", "max"),
+    Input("contig", "value"),
+    State("coverage-start", "value"),
+    State("coverage-end", "value"),
 )
-def update_via_contig(contig):
-    start=0
-    end = min(COVERAGE_DATA[contig]["+"].shape[-1], 2000)
-    return start, end
+def update_via_contig(contig, start, end):
+    size = COVERAGE_DATA[contig]["+"].shape[-1]
+    print(size, start, end)
+    if end is None or end >= size:
+        start = 0
+        end = min(COVERAGE_DATA[contig]["+"].shape[-1], 2000)
+
+    return start, end, size
 
 
 @callback(
     Output("coverage-graph", "figure"),
     Output("internal-axis-range", "data"),
     Output("x-axis-range", 'data'),
+    Output("current-contig", 'data'),
     Input("coverage-start", "value"),
     Input("coverage-end", "value"),
     Input("mode-switch", "value"),
     State("contig", "value"),
+    State("current-contig", "data"),
     State("x-axis-range", "data"),
     State("autorange-y", "value"),
     State("coverage-graph", "figure"),
 )
-def update_coverage_plot(start, end, switch, contig, axis_range, autorange_y, old_fig):
+def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, autorange_y, old_fig):
     design = COVERAGE_DESIGN
     coverage = COVERAGE_DATA
     display_start = axis_range["xaxis.range[0]"]
     display_end = axis_range["xaxis.range[1]"]
-    print(display_start, display_end, start, end)
-    if dash.ctx.triggered_id != "mode-switch":
+    print("updating figure", display_start, display_end, start, end, old_contig, contig)
+    if dash.ctx.triggered_id != "mode-switch" and old_contig == contig:
+        if any(i is None for i in (start, end)):
+            raise dash.exceptions.PreventUpdate
         if int(display_start) == int(start) and int(display_end) == int(end):
             raise dash.exceptions.PreventUpdate
-        else:
-            display_start = start
-            display_end = end
-        if display_start is None or display_end is None or display_start >= display_end:
+        if start >= end:
             raise dash.exceptions.PreventUpdate
+    s = time.time()
 
 
-
-    internal_window, step = _calc_internal_params(display_start, display_end)
-    winsize = display_end - display_start
+    internal_window, step = _calc_internal_params(start, end)
+    winsize = end - start
     print(internal_window, step)
     show_annotations = winsize <= 5000
+    show_features = winsize <= 100000
     fig = plot_precomputed_coverage(
         design,
         contig=contig,
@@ -260,8 +380,14 @@ def update_coverage_plot(start, end, switch, contig, axis_range, autorange_y, ol
         vertical_spacing=0,
         arrow_size=winsize * 0.01,
         step=step,
-        show_annotations=show_annotations
+        show_annotations=show_annotations,
+        show_features=show_features
     )
+    if not show_features:
+        fig.add_annotation(
+            text="Zoom in<br>to display<br>features", showarrow=False,
+            row=2, col=1
+        )
     if not switch:
         fig.update_layout(DARK_LAYOUT)
         linecolor = "white"
@@ -276,7 +402,7 @@ def update_coverage_plot(start, end, switch, contig, axis_range, autorange_y, ol
         showline=True,
         mirror=True,
         linecolor=linecolor,
-        range=[display_start, display_end],
+        range=[start, end],
         minallowed=0,
 
     )
@@ -320,8 +446,12 @@ def update_coverage_plot(start, end, switch, contig, axis_range, autorange_y, ol
 
     fig.update_layout(dragmode="pan", uirevision=True)
     fig.update_shapes(line=dict(color=linecolor))
-    lout = {'xaxis.range[0]': display_start, 'xaxis.range[1]': display_end,}
-    return fig, internal_window, lout
+    lout = {'xaxis.range[0]': start, 'xaxis.range[1]': end,}
+    e = time.time()
+    print(f"no honestly im updating {e-s}")
+
+
+    return fig, internal_window, lout, contig
 
 
 
