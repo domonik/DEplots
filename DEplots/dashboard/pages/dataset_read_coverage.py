@@ -16,7 +16,8 @@ if COVERAGE_DATA is not None:
     dash.register_page(__name__, path='/coverage', name="Read Coverage")
 
 SETTINGS_ROW = "px-2"
-SETTINGS_COL = "py-2 d-flex align-items-center"
+SETTINGS_COL = "py-2 d-flex align-items-center justify-content-between"
+SETTINGS_LABEL = {"className": "me-3", "style": {"min-width": "30%"}}
 
 
 def coverage_settings_card():
@@ -24,27 +25,40 @@ def coverage_settings_card():
     coverage_plot_card = dbc.Col(
         dbc.Card(
             [
-                dbc.CardHeader(
-                    dbc.Row(
-                        [
-                            dbc.Col(html.H5("Settings"), width=6),
-
-                        ]
-
-                    ),
-
-                ),
+                # dbc.CardHeader(
+                #     dbc.Row(
+                #         [
+                #             dbc.Col(html.H5("Settings"), width=6),
+                #
+                #         ]
+                #
+                #     ),
+                #
+                # ),
                 dbc.Col(
                     [
                         dbc.Row(
                             [
-                                dbc.Col(html.Span("Sequence"), width=6, md=3, className=SETTINGS_COL),
-                                dbc.Col(dcc.Dropdown(id="contig", options=contigs, value=contigs[0], clearable=False, style={"width": "100%"}),
-                                        width=6, className=SETTINGS_COL,
-                                        md=3),
-                                dbc.Col(html.Span("Autorange Y"), width=6, md=3, className=SETTINGS_COL),
-                                dbc.Col(dbc.Switch(id="autorange-y", value=True, className="fs-5"), width=6, md=3,
-                                        className="d-flex justify-content-end " + SETTINGS_COL),
+                                dbc.Col([
+                                    html.Span("Sequence", **SETTINGS_LABEL, ),
+                                    dcc.Dropdown(id="contig", options=contigs, value=contigs[0], clearable=False,
+                                                 style={"width": "100%"})
+                                ], width=12, sm=6, lg=3, className=SETTINGS_COL),
+                                dbc.Col([
+                                    html.Span("Start", **SETTINGS_LABEL),
+                                    dbc.Input(id="coverage-start", type="number", value=0, min=0, step=1, ),
+
+                                ], width=12, sm=6, lg=3, className=SETTINGS_COL),
+                                dbc.Col([
+                                    html.Span("End", **SETTINGS_LABEL),
+                                    dbc.Input(id="coverage-end", type="number", value=2000, min=0, step=1, ),
+                                ], width=12, sm=6, lg=3, className=SETTINGS_COL),
+                                dbc.Col([
+                                    html.Span("Autorange Y", **SETTINGS_LABEL),
+                                    dbc.Switch(id="autorange-y", value=True, className="fs-5")
+                                ], width=12, sm=6, lg=3, className=SETTINGS_COL),
+
+
 
                             ],
                             className=SETTINGS_ROW
@@ -53,12 +67,7 @@ def coverage_settings_card():
 
                         dbc.Row(
                             [
-                                dbc.Col(html.Span("Start"), width=6, md=3, className=SETTINGS_COL),
-                                dbc.Col(dbc.Input(id="coverage-start", type="number", value=0, min=0, step=1,),
-                                        width=6, md=3,  className=SETTINGS_COL),
-                                dbc.Col(html.Span("End"), width=6, md=3,className=SETTINGS_COL),
-                                dbc.Col(dbc.Input(id="coverage-end", type="number", value=2000, min=0, step=1, ),
-                                        width=6, md=3, className=SETTINGS_COL),
+
                             ],
                             className=SETTINGS_ROW
 
@@ -74,7 +83,7 @@ def coverage_settings_card():
             ],
             className="shadow",
         ),
-        width=12, md=6
+        width=12, md=12
     )
 
     return coverage_plot_card
@@ -200,7 +209,84 @@ def gff_container():
             ],
             className="shadow",
         ),
-        width=12, md=6,
+        width=12, lg=6,
+    )
+    return gff
+
+
+def visible_gff_container():
+    cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
+    gff =  dbc.Col(
+        dbc.Card(
+            [
+                dbc.CardHeader(
+                    dbc.Row(
+                        [
+                            dbc.Col(html.H5("Visible"), width=6),
+                            dbc.Col(
+                                [
+                                    html.Div(html.Div(className="gff-legend2"), className="gff-legend"),
+                                    html.Span("Feature visible", className="ms-3"),
+
+                                ], width=6, className="d-flex align-items-center justify-content-end"),
+                        ]
+
+                    ),
+
+                ),
+                dbc.Col(
+                    dash_table.DataTable(
+                        id='visible-gff-table',
+                        columns=cols,
+                        data=None,
+                        editable=True,
+                        sort_action="native",
+                        sort_mode="multi",
+                        column_selectable=False,
+                        merge_duplicate_headers=True,
+                        row_selectable=False,
+                        row_deletable=False,
+                        selected_columns=[],
+                        selected_rows=[],
+                        page_action="native",
+                        page_current=0,
+                        page_size=10,
+                        style_as_list_view=True,
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'even'},
+                                'backgroundColor': "rgba(var(--bs-primary-rgb), 0.2)",
+                            },
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': "rgba(var(--bs-primary-rgb), 0.3)",
+                            },
+
+                        ],
+                        style_header={
+                            'backgroundColor': 'var(--bs-secondary-bg)',
+                            'fontWeight': 'bold',
+                            "border": "none"
+                        },
+                        style_filter={
+                            'backgroundColor': 'var(--bs-secondary-bg)',
+                            'fontWeight': 'bold',
+                            "border": "none !important"
+
+                        },
+                        style_data={'border': 'none !important'}
+
+                    ),
+                    width=12,
+                    style={"overflow": "auto", 'backgroundColor': 'var(--bs-primary-bg)'},
+                    className="p-2"
+
+                ),
+
+            ],
+            className="shadow",
+        ),
+        width=12, lg=6,
     )
     return gff
 
@@ -219,10 +305,13 @@ def get_layout():
 
                     ),
                     dbc.Row(
+                        coverage_settings_card(),
+                    ),
+                    dbc.Row(
                         [
-                            coverage_settings_card(),
 
                             gff_container(),
+                            visible_gff_container(),
                         ],
 
                         className="py-1"
@@ -309,7 +398,7 @@ def click_data_table(active_cell):
     data = GFF.iloc[active_cell["row_id"]]
     start = max(data["start"] - 250, 0)
     contig = data["seqid"]
-    end = min(COVERAGE_DATA[contig]["+"].shape[-1], data["end"] + 250)
+    end = min(COVERAGE_DATA[contig]["+"].shape[-1] - 1, data["end"] + 250)
 
 
     return start, end, contig
@@ -334,6 +423,41 @@ def update_via_contig(contig, start, end):
     return start, end, size
 
 
+
+def check_if_update_necessary(start, end, display_start, display_end, old_contig, contig):
+    if dash.ctx.triggered_id != "mode-switch" and old_contig == contig:
+        if any(i is None for i in (start, end)):
+            raise dash.exceptions.PreventUpdate
+        if int(display_start) == int(start) and int(display_end) == int(end):
+            raise dash.exceptions.PreventUpdate
+        if start >= end:
+            raise dash.exceptions.PreventUpdate
+
+
+@callback(
+    Output("visible-gff-table", "data"),
+    Input("coverage-start", "value"),
+    Input("coverage-end", "value"),
+    State("contig", "value"),
+    State("current-contig", "data"),
+    State("x-axis-range", "data"),
+
+)
+def update_visible_table(start, end, contig, old_contig, axis_range):
+    display_start = axis_range["xaxis.range[0]"]
+    display_end = axis_range["xaxis.range[1]"]
+    check_if_update_necessary(start, end, display_start, display_end, old_contig, contig)
+    data = GFF
+    data = data[(data["seqid"] == contig) & (data["start"] <= end) & (data["end"] >= start)]
+    data["id"] = data.index
+    data = data.to_dict('records')
+    return data
+
+
+
+
+
+
 @callback(
     Output("coverage-graph", "figure"),
     Output("internal-axis-range", "data"),
@@ -354,13 +478,7 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     display_start = axis_range["xaxis.range[0]"]
     display_end = axis_range["xaxis.range[1]"]
     print("updating figure", display_start, display_end, start, end, old_contig, contig)
-    if dash.ctx.triggered_id != "mode-switch" and old_contig == contig:
-        if any(i is None for i in (start, end)):
-            raise dash.exceptions.PreventUpdate
-        if int(display_start) == int(start) and int(display_end) == int(end):
-            raise dash.exceptions.PreventUpdate
-        if start >= end:
-            raise dash.exceptions.PreventUpdate
+    check_if_update_necessary(start, end, display_start, display_end, old_contig, contig)
     s = time.time()
 
 

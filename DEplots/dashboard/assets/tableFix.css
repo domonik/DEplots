@@ -93,15 +93,29 @@ body .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-in
   border-top-left-radius: 5px;
 }
 
+#visible-gff-table th:first-of-type.dash-header  {
+  border-top-left-radius: 5px;
+}
+
 
 .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td.focused{
     outline: none !important;
 }
-.dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner  tr:nth-child(even) td.cell--selected {
+
+.dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:nth-child(even) td.cell--selected {
     background-color: var(--bs-secondary-bg) !important;
 }
-.dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner  tr:nth-child(odd) td.cell--selected {
+
+.dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:nth-child(odd) td.cell--selected {
     background-color: var(--bs-tertiary-bg) !important;
+}
+
+#visible-gff-table .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:nth-child(even) td.cell--selected {
+    background-color: rgba(var(--bs-primary-rgb), 0.2) !important;
+}
+
+#visible-gff-table .dbc .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:nth-child(odd) td.cell--selected {
+    background-color: rgba(var(--bs-primary-rgb), 0.3) !important;
 }
 
 tr:first-of-type th:first-of-type.dash-select-header  {

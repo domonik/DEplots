@@ -50,7 +50,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             let subdata = indices.map(i => table_data[i]);
             let visibleIndices = [];
             for (let i = 0; i < subdata.length; i++) {
-                if (subdata[i]["start"] <= end && subdata[i]["end"] >= start) {
+                if (subdata[i]["seqid"] == contig && subdata[i]["start"] <= end && subdata[i]["end"] >= start) {
                     visibleIndices.push(i+2);
                 }
             }
