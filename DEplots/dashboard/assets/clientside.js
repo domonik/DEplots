@@ -46,6 +46,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         //
         //
         // },
+        update_trace_color: function(color, trace_colors, trace){
+            console.log(trace_colors)
+            trace_colors[trace] = color
+            return trace_colors
+        },
         highlight_displayed: function (indices, start, end, contig, table_data){
             let subdata = indices.map(i => table_data[i]);
             let visibleIndices = [];

@@ -189,6 +189,21 @@ app.clientside_callback(
 app.clientside_callback(
     ClientsideFunction(
         namespace="clientside",
+        function_name="update_trace_color",
+    ),
+    Output("trace-colors", "data"),
+    [
+        Input("trace-color", "value"),
+        State('trace-colors', 'data'),
+        State("trace-color-dd", "value")
+
+    ],
+    prevent_initial_call=True,
+)
+
+app.clientside_callback(
+    ClientsideFunction(
+        namespace="clientside",
         function_name="highlight_displayed",
     ),
     Output("placeholder1", "data", allow_duplicate=True),

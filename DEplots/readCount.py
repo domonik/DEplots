@@ -300,12 +300,12 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
 def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand, step, colors=None):
     tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "index": list})
     if colors is None:
-        colors = DEFAULT_PLOTLY_COLORS
+        colors = {trace: px.colors.qualitative.Light24[idx] for idx, trace in enumerate(design.Treatment)}
     traces = []
     errors = []
     for idx, row in tmp.iterrows():
         name = row["Treatment"]
-        color = colors[idx]
+        color = colors[name]
         y = coverages[contig][strand][row["index"], wstart:wend]
         t, e = _sum_trace(y, color, name, wstart, step)
         traces += t

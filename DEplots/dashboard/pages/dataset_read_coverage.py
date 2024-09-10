@@ -8,13 +8,31 @@ from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_de
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF
 import numpy as np
-from DEplots.readCount import plot_precomputed_coverage
+from DEplots.readCount import plot_precomputed_coverage, GFF3_TYPE_TO_COLOR, css_color_to_rgba
 import time
-
-
+import math
+FEATURE_COLORS = GFF3_TYPE_TO_COLOR | {
+    "gene": "rgb(219, 219, 219)",
+    "mRNA": "rgb(219, 219, 219)",
+    "exon": "rgb(219, 219, 219)",
+    "CDS": UP_COLOR_DARK,
+    "start_codon": UP_COLOR_LIGHT,
+    "stop_codon": UP_COLOR_LIGHT,
+    "five_prime_UTR": DOWN_COLOR_LIGHT,
+    "5UTR": DOWN_COLOR_LIGHT,
+    "5'UTR": DOWN_COLOR_LIGHT,
+    "three_prime_UTR": DOWN_COLOR_DARK,
+    "3UTR": DOWN_COLOR_DARK,
+    "3'UTR": DOWN_COLOR_DARK,
+    "ncRNA": UP_COLOR_DARK,
+    #"rRNA": px.colors.qualitative.Light24[9],
+    #"tRNA": px.colors.qualitative.Light24[10],
+    #"repeat_region": px.colors.qualitative.Light24[11],
+    "default": "#7CB9E8"
+}
 if COVERAGE_DATA is not None:
     dash.register_page(__name__, path='/coverage', name="Read Coverage")
-
+    TRACE_COLORS = {trace: DEFAULT_PLOTLY_COLORS_LIST[idx] for idx, trace in enumerate(COVERAGE_DESIGN.Treatment.unique())}
 SETTINGS_ROW = "px-2"
 SETTINGS_COL = "py-2 d-flex align-items-center justify-content-between"
 SETTINGS_LABEL = {"className": "me-3", "style": {"min-width": "30%"}}
@@ -96,15 +114,32 @@ def coverage_card():
                 dbc.CardHeader(
                     dbc.Row(
                         [
-                            dbc.Col(html.H5("Coverage"), width=6),
-                            dbc.Col(html.Span("Name Column"), width=3,
+                            dbc.Col(html.H5("Coverage"), width=4),
+                            dbc.Col(html.Span("Trace"), width=1,
                                     className="d-flex align-items-center justify-content-end"),
                             dbc.Col(dcc.Dropdown(
+                                options=list(COVERAGE_DESIGN.Treatment.unique()),
+                                value=list(COVERAGE_DESIGN.Treatment.unique())[0],
                                 style={"width": "100%"},
-                                id="plot-hover-name-dd",
+                                id="trace-color-dd",
                                 clearable=False
 
                             ), width=3, className="d-flex align-items-center"),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="trace-color",
+                                    type="color",
+                                    style={
+                                        "width": "10rem",
+                                        "height": "2rem",
+
+                                    }
+                                ),
+                                width=1,
+                                className="d-flex align-items-center"
+
+                            )
+
                         ]
 
                     ),
@@ -290,6 +325,7 @@ def visible_gff_container():
     )
     return gff
 
+
 def get_layout():
     lout = html.Div(
         [
@@ -297,6 +333,7 @@ def get_layout():
             dcc.Store(id="internal-axis-range", data=[0, 2000]),
             dcc.Store(id="placeholder1", data=None),
             dcc.Store(id="current-contig", data=None),
+            dcc.Store(id="trace-colors", data=TRACE_COLORS),
             dbc.Container(
                 [
                     dbc.Row(
@@ -334,6 +371,16 @@ def _is_zoom_relayout(old_rlout_data, new_rlout_data):
         return False
     else:
         return True
+
+
+@callback(
+    Output("trace-color", "value"),
+    Input("trace-color-dd", "value"),
+    State("trace-colors", "data"),
+)
+def update_box_color(trace, colors):
+    return colors[trace]
+
 
 
 
@@ -455,7 +502,30 @@ def update_visible_table(start, end, contig, old_contig, axis_range):
 
 
 
+@callback(
+    Output("coverage-graph", "figure", allow_duplicate=True),
+    Input("trace-colors", "data"),
+    State("coverage-graph", "figure"),
 
+    prevent_initial_call=True
+)
+def my_callback(trace_colors, fig):
+    if fig is None:
+        raise dash.exceptions.PreventUpdate
+
+
+    # Creating a Patch object
+    patched_figure = dash.Patch()
+
+    for idx, trace in enumerate(fig["data"]):
+        if "legendgroup" in trace:
+            color = trace_colors[trace["legendgroup"]]
+            if trace["name"] == "Mean" or trace["name"] == "Median":
+                patched_figure["data"][idx]["line"]["color"] = color
+            else:
+                a_color = css_color_to_rgba(color, 0.4)
+                patched_figure["data"][idx]["fillcolor"] = a_color
+    return patched_figure
 
 
 @callback(
@@ -471,8 +541,10 @@ def update_visible_table(start, end, contig, old_contig, axis_range):
     State("x-axis-range", "data"),
     State("autorange-y", "value"),
     State("coverage-graph", "figure"),
+    State("trace-colors", "data"),
+
 )
-def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, autorange_y, old_fig):
+def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, autorange_y, old_fig, trace_colors):
     design = COVERAGE_DESIGN
     coverage = COVERAGE_DATA
     display_start = axis_range["xaxis.range[0]"]
@@ -499,7 +571,9 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
         arrow_size=winsize * 0.01,
         step=step,
         show_annotations=show_annotations,
-        show_features=show_features
+        show_features=show_features,
+        type_colors=FEATURE_COLORS,
+        colors=trace_colors
     )
     if not show_features:
         fig.add_annotation(
