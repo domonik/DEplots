@@ -7,12 +7,13 @@ from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
 from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_deseq
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
-    UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF
+    UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF, LINE_MAPPING
 import numpy as np
 from DEplots.readCount import plot_precomputed_coverage, GFF3_TYPE_TO_COLOR, css_color_to_rgba
 import time
 from DEplots.gff_helper import GFF_COLNAMES
 import math
+
 FEATURE_COLORS = GFF3_TYPE_TO_COLOR | {
     "gene": "rgb(219, 219, 219)",
     "mRNA": "rgb(219, 219, 219)",
@@ -27,14 +28,15 @@ FEATURE_COLORS = GFF3_TYPE_TO_COLOR | {
     "3UTR": DOWN_COLOR_DARK,
     "3'UTR": DOWN_COLOR_DARK,
     "ncRNA": UP_COLOR_DARK,
-    #"rRNA": px.colors.qualitative.Light24[9],
-    #"tRNA": px.colors.qualitative.Light24[10],
-    #"repeat_region": px.colors.qualitative.Light24[11],
+    # "rRNA": px.colors.qualitative.Light24[9],
+    # "tRNA": px.colors.qualitative.Light24[10],
+    # "repeat_region": px.colors.qualitative.Light24[11],
     "default": "#7CB9E8"
 }
 if COVERAGE_DATA is not None:
     dash.register_page(__name__, path='/coverage', name="Read Coverage")
-    TRACE_COLORS = {trace: DEFAULT_PLOTLY_COLORS_LIST[idx] for idx, trace in enumerate(COVERAGE_DESIGN.Treatment.unique())}
+    TRACE_COLORS = {trace: DEFAULT_PLOTLY_COLORS_LIST[idx] for idx, trace in
+                    enumerate(COVERAGE_DESIGN.Treatment.unique())}
 SETTINGS_ROW = "px-2"
 SETTINGS_COL = "py-2 d-flex align-items-center justify-content-between"
 SETTINGS_LABEL = {"className": "me-3", "style": {"min-width": "30%"}}
@@ -78,8 +80,6 @@ def coverage_settings_card():
                                     dbc.Switch(id="autorange-y", value=True, className="fs-5")
                                 ], width=12, sm=6, lg=3, className=SETTINGS_COL),
 
-
-
                             ],
                             className=SETTINGS_ROW
 
@@ -97,8 +97,6 @@ def coverage_settings_card():
                     className="p-2"
 
                 ),
-
-
 
             ],
             className="shadow",
@@ -169,14 +167,20 @@ def coverage_card():
     return coverage_plot_card
 
 
-def gff_container():
+TYPE_MAP = {
+               ftype: "text" for ftype in GFF_COLNAMES if ftype not in ["start", "end"]
+           } | {"start": "numeric", "end": "numeric"}
 
+
+def gff_container():
     if isinstance(GFF, str):
         data = gffutils.FeatureDB(GFF)
         cs = data.all_features()
         cols = GFF_COLNAMES
-        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {"attributes": str(row.attributes), "id": row.id} for row in cs]
-        cols = [{"name": i, "id": i} for i in cols if i != "id"]
+        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {
+            "attributes": str(row).split("\t")[-1], "id": row.id} for row in cs]
+        cols = [{"name": i, "id": i, "type": TYPE_MAP[i]} for i in cols if i != "id"]
+        print(cols)
 
     elif isinstance(GFF, pd.DataFrame):
         data = GFF
@@ -232,7 +236,20 @@ def gff_container():
                                 'if': {'row_index': 'even'},
                                 'backgroundColor': 'var(--bs-tertiary-bg)',
                             },
+                            # {
+                            #     'if': {
+                            #         'column_type': 'text'  # 'text' | 'any' | 'datetime' | 'numeric'
+                            #     },
+                            #     'textAlign': 'left'
+                            # },
 
+                        ],
+                        style_cell_conditional=[
+                            {
+                                'if': {'column_id': 'attributes'},
+                                'textAlign': 'left',
+
+                            }
                         ],
                         style_header={
                             'backgroundColor': 'var(--bs-secondary-bg)',
@@ -250,7 +267,7 @@ def gff_container():
                     ),
                     width=12,
                     style={"overflow": "auto", 'backgroundColor': 'var(--bs-primary-bg)'},
-                    className="p-2"
+                    className="p-2 gff-table"
 
                 ),
 
@@ -269,7 +286,7 @@ def visible_gff_container():
         cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
     else:
         raise NotImplementedError
-    gff =  dbc.Col(
+    gff = dbc.Col(
         dbc.Card(
             [
                 dbc.CardHeader(
@@ -327,7 +344,14 @@ def visible_gff_container():
                             "border": "none !important"
 
                         },
-                        style_data={'border': 'none !important'}
+                        style_data={'border': 'none !important'},
+                        style_cell_conditional=[
+                            {
+                                'if': {'column_id': 'attributes'},
+                                'textAlign': 'left',
+
+                            }
+                        ],
 
                     ),
                     width=12,
@@ -347,7 +371,8 @@ def visible_gff_container():
 def get_layout():
     lout = html.Div(
         [
-            dcc.Store(id="x-axis-range", data={"xaxis.range[0]": 1, "xaxis.range[1]": 2000, "yaxis2.range[0]": -0.5, "y2axis.range[1]": 5.5}),
+            dcc.Store(id="x-axis-range", data={"xaxis.range[0]": 1, "xaxis.range[1]": 2000, "yaxis2.range[0]": -0.5,
+                                               "y2axis.range[1]": 5.5}),
             dcc.Store(id="internal-axis-range", data=[0, 2000]),
             dcc.Store(id="placeholder1", data=None),
             dcc.Store(id="current-contig", data=None),
@@ -385,7 +410,7 @@ def get_layout():
 def _is_zoom_relayout(old_rlout_data, new_rlout_data):
     old_winsize = old_rlout_data["xaxis.range[1]"] - old_rlout_data["xaxis.range[0]"]
     new_winsize = new_rlout_data["xaxis.range[1]"] - new_rlout_data["xaxis.range[0]"]
-    if np.isclose(old_winsize, new_winsize): # only shifts window
+    if np.isclose(old_winsize, new_winsize):  # only shifts window
         return False
     else:
         return True
@@ -398,9 +423,6 @@ def _is_zoom_relayout(old_rlout_data, new_rlout_data):
 )
 def update_box_color(trace, colors):
     return colors[trace]
-
-
-
 
 
 @callback(
@@ -430,16 +452,16 @@ def detect_relayout(new_lout, old_lout, internal_xaxis):
             new_lout["xaxis.range[0]"] = -1  # This forces the figure to replot
 
             return new_lout, start, end
-        else: # now we need to determine if we moved outside the window_range
-            if new_lout["xaxis.range[1]"] > internal_xaxis[1] - add_win or new_lout["xaxis.range[0]"] < internal_xaxis[0] + add_win:
+        else:  # now we need to determine if we moved outside the window_range
+            if new_lout["xaxis.range[1]"] > internal_xaxis[1] - add_win or new_lout["xaxis.range[0]"] < internal_xaxis[
+                0] + add_win:
                 print("scrolled out of window")
-                new_lout["xaxis.range[0]"] = -1 # This forces the figure to replot
+                new_lout["xaxis.range[0]"] = -1  # This forces the figure to replot
                 print(new_lout)
-                return new_lout,  start, end
+                return new_lout, start, end
         return new_lout, start, end
 
     raise dash.exceptions.PreventUpdate
-
 
 
 def _calc_internal_params(display_start, display_end):
@@ -449,6 +471,7 @@ def _calc_internal_params(display_start, display_end):
     end = display_end + add_win
     step = max(1, int((end - start) * 0.005))
     return [start, end], step
+
 
 @callback(
     Output("coverage-start", "value", allow_duplicate=True),
@@ -466,15 +489,14 @@ def click_data_table(active_cell):
     elif isinstance(GFF, str):
         db = gffutils.FeatureDB(GFF)
         data = db[active_cell["row_id"]]
-    else: raise NotImplementedError
+    else:
+        raise NotImplementedError
 
     start = max(data.start - 250, 0)
     contig = data.seqid
     end = min(COVERAGE_DATA[contig]["+"].shape[-1] - 1, data.end + 250)
 
-
     return start, end, contig
-
 
 
 @callback(
@@ -493,7 +515,6 @@ def update_via_contig(contig, start, end):
         end = min(COVERAGE_DATA[contig]["+"].shape[-1], 2000)
 
     return start, end, size
-
 
 
 def check_if_update_necessary(start, end, display_start, display_end, old_contig, contig):
@@ -527,13 +548,12 @@ def update_visible_table(start, end, contig, old_contig, axis_range):
     elif isinstance(GFF, str):
         db = gffutils.FeatureDB(GFF)
         data = db.region(start=start, end=end, seqid=contig)
-        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {"attributes": str(row.attributes), "id": row.id} for row in data]
+        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {
+            "attributes": str(row).split("\t")[-1], "id": row.id} for row in data]
     else:
         raise dash.exceptions.PreventUpdate
 
-
     return data
-
 
 
 @callback(
@@ -546,7 +566,6 @@ def update_visible_table(start, end, contig, old_contig, axis_range):
 def my_callback(trace_colors, fig):
     if fig is None:
         raise dash.exceptions.PreventUpdate
-
 
     # Creating a Patch object
     patched_figure = dash.Patch()
@@ -587,7 +606,6 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     check_if_update_necessary(start, end, display_start, display_end, old_contig, contig)
     s = time.time()
 
-
     internal_window, step = _calc_internal_params(start, end)
     winsize = end - start
     print(internal_window, step)
@@ -608,7 +626,8 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
         show_annotations=show_annotations,
         show_features=show_features,
         type_colors=FEATURE_COLORS,
-        colors=trace_colors
+        colors=trace_colors,
+        line_mapping=LINE_MAPPING
     )
     if not show_features:
         fig.add_annotation(
@@ -646,20 +665,24 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
         linecolor=linecolor
 
     )
-    range_max = 5.5
+    range_max = 4
     fig.update_yaxes(
-        #showgrid=False,
+        # showgrid=False,
         zeroline=False,
-        range=[-0.5, range_max],
+        range=[-1, range_max],
         row=2,
     )
+    print(fig.layout["yaxis2"].maxallowed)
     if fig.layout["yaxis2"].maxallowed <= range_max:
         fig.update_yaxes(
-            fixedrange = True,
-            range=[-0.5, fig.layout["yaxis2"].maxallowed],
-
-            row=2
+            fixedrange=True,
+            maxallowed=range_max,
+            showgrid=False,
+            showticklabels=False,
+            row=2,
         )
+        print(fig.layout["yaxis2"])
+
     fig.update_yaxes(
         minallowed=-10,
         row=1
@@ -675,14 +698,11 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
 
     fig.update_layout(dragmode="pan", uirevision=True)
     fig.update_shapes(line=dict(color=linecolor))
-    lout = {'xaxis.range[0]': start, 'xaxis.range[1]': end,}
+    lout = {'xaxis.range[0]': start, 'xaxis.range[1]': end, }
     e = time.time()
-    print(f"no honestly im updating {e-s}")
-
+    print(f"no honestly im updating {e - s}")
 
     return fig, internal_window, lout, contig
-
-
 
 
 layout = get_layout()

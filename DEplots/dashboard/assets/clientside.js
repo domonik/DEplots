@@ -147,8 +147,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 figure["layout"][axis]["fixedrange"] = true;
 
             }
-            figure["layout"]["yaxis2"]["range"][0] = relayout["yaxis2.range[0]"]
-            figure["layout"]["yaxis2"]["range"][1] = relayout["yaxis2.range[0]"] + 5
+            //figure["layout"]["yaxis2"]["range"][0] = relayout["yaxis2.range[0]"]
+            //figure["layout"]["yaxis2"]["range"][1] = relayout["yaxis2.range[0]"] + 5
 
 
             return figure

@@ -169,3 +169,25 @@ input:invalid {
 	outline: 0;
 	box-shadow: inherit;
 }
+
+#visible-gff-table td.column-8 {
+    text-align: left !important;
+}
+
+#visible-gff-table td.column-8 input {
+    text-align: left !important;
+}
+
+#gff-table td.column-8 {
+    text-align: left !important;
+}
+
+#gff-table td.column-8 input {
+    text-align: left !important;
+}
+
+.gff-table .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.column-8 input:not([type="radio"]):not([type="checkbox"]) {
+	direction: ltr !important;
+    text-align: left;
+    margin-left: 5px;
+}

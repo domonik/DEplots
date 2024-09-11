@@ -11,11 +11,12 @@ def cli_wrapper(
         processes: int = 1
 ):
     DEplots.dashboard.DASH_DATA = get_data(config_file, run_dir)
-    cov_design, cov_data, gff = get_coverage_data(config_file)
+    cov_design, cov_data, gff, line_mapping = get_coverage_data(config_file)
     if cov_data is not None:
         DEplots.dashboard.COVERAGE_DATA = cov_data
         DEplots.dashboard.COVERAGE_DESIGN = cov_design
         DEplots.dashboard.GFF = gff
+        DEplots.dashboard.LINE_MAPPING = line_mapping
     from DEplots.dashboard.app import app, get_layout
 
     app.layout = get_layout()

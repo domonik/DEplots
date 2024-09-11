@@ -1,3 +1,5 @@
+import sqlite3
+
 import pandas as pd
 import gffutils
 from tempfile import TemporaryDirectory
@@ -110,13 +112,13 @@ def fix_gff_db(dbfn: str):
             parents = list(db.parents(entry.id))
             if not parents:
                 if intervals_overlap(last_gene_or_transcript, entry):
-                    relations.append((last_gene_or_transcript, entry, False))
+                    relations.append((last_gene_or_transcript, [entry], False))
                 else:
                     print("Non valid gff3 entry outside gene annotation detected. try to fix")
                     res = list(db.region(strand=entry.strand, start=entry.start -10, end=entry.end+10, seqid=entry.seqid, featuretype="gene"))
                     if res:
                         nearest = min(res, key=lambda r: nearest_distance(r, entry))
-
+                        new_children = list(db.children(nearest)) + [entry]
 
                         if nearest.end < entry.start:
                             print("feature before. Extending gene downstream")
@@ -137,13 +139,16 @@ def fix_gff_db(dbfn: str):
                             delete = False
                             print("overlapping")
 
-                        relations.append((nearest, entry, delete))
+                        relations.append((nearest, new_children, delete))
     del db
     db = gffutils.FeatureDB(dbfn)
-    for gene, target, need_to_add in relations:
+    for gene, targets, need_to_add in relations:
         if need_to_add:
-            db.update([gene])
-        db.add_relation(gene, target, level=1)
+            db.update([gene], keep_order=True, merge_strategy="merge", id_spec="ID")
+        listed_children = [child.id for child in db.children(gene.id)]
+        for target in targets:
+            if target.id not in listed_children:
+                db.add_relation(gene, target, level=1)
 
 
 

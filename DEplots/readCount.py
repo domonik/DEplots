@@ -245,7 +245,7 @@ def _compute_lines(df):
     return df
 
 
-def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size=None):
+def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size=None, line_mapping=None):
     if type_colors is None:
         type_colors = GFF3_TYPE_TO_COLOR
     else:
@@ -254,16 +254,51 @@ def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arro
     if arrow_size is None:
         arrow_size = 0.01 * (wend - wstart)
 
-    data = gff.region(start=wstart, end=wend, seqid=contig)
+    data = list(gff.region(start=wstart, end=wend, seqid=contig, featuretype="gene"))
     traces = []
     annotations = []
+    genes = []
+    remainder = []
     idx = 0
-    for idx, row in enumerate(data):
+    forbidden = set()
+    m_idx = 0
+    for row in data:
+        if line_mapping:
+            idx = line_mapping[row.id]
+            if idx > m_idx:
+                m_idx = idx
+        genes.append((idx, row))
+        annotations.append(
+            dict(
+                text=f'{",".join(row.attributes[gff_name]) if gff_name in row.attributes else row.id}',
+                x=(row.end - row.start) / 2 + row.start,
+                y=idx,
+                showarrow=False,
+            )
+
+        )
+        children = list(gff.children(row.id))
+        print(children, row)
+        genes += [(idx, child) for child in children]
+        forbidden = forbidden | set([child.id for child in children] + [row.id])
+        idx += 1
+    data = list(gff.region(start=wstart, end=wend, seqid=contig))
+    for row in data:
+        if row.id not in forbidden:
+            if line_mapping:
+                idx = line_mapping[row.id]
+                if idx > m_idx:
+                    m_idx = idx
+            genes.append((idx, row))
+            idx += 1
+    idx = 0
+    for idx, row in genes:
         trace = _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name)
         traces.append(
             trace
         )
-    return traces, annotations, np.arange(idx)
+    max_idx = m_idx if line_mapping else idx
+    return traces, annotations, max_idx
 
 
 
@@ -296,7 +331,7 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
                 )
 
             )
-    return traces, annotations, gff["line"]
+    return traces, annotations, gff["line"].max()
 
 
 def _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name):
@@ -357,6 +392,7 @@ def plot_precomputed_coverage(
         step: int = 1,
         show_annotations: bool = True,
         show_features: bool = True,
+        line_mapping: Dict = None,
         **kwargs):
     wstart = max(int(wstart), 0)
     wend = min(int(wend), coverages[contig]["+"].shape[-1])
@@ -375,9 +411,9 @@ def plot_precomputed_coverage(
     if show_features:
         if isinstance(gff, pd.DataFrame):
             gff = filter_gff_by_interval(gff, contig, wstart, wend)
-            gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
+            gff_traces, annotations, max_idx = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
         elif isinstance(gff, gffutils.FeatureDB):
-            gff_traces, annotations, indices = _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size)
+            gff_traces, annotations, max_idx = _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size, line_mapping)
         else:
             raise NotImplementedError("Non supported feature database")
         fig.add_traces(
@@ -392,25 +428,21 @@ def plot_precomputed_coverage(
                     row=2, col=1
                 )
     else:
-        indices = np.nan
+        max_idx = np.nan
     fig.update_xaxes(
         range=[wstart, wend],
         minallowed=[wstart, wend],
         maxallowed=coverages[contig]["+"].shape[-1]
     )
-    m = indices.max() if show_features else np.nan
-    if np.isnan(m):
+    if np.isnan(max_idx):
         fig.add_annotation(
             text="", showarrow=False,
             row=2, col=1
         )
-        m = 2
+        max_idx = 2
     fig.update_yaxes(
-        tickvals=list(range(m)),
-        ticktext=list(range(m)),
-        minallowed=-0.5,
-        maxallowed=m+0.5,
-        tickmode="array",
+        minallowed=-0.5-1,
+        maxallowed=max_idx+0.5+1,
         showticklabels=False,
         row=2,
     )

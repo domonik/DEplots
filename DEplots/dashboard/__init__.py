@@ -28,7 +28,7 @@ def get_coverage_data(config_file):
         config = yaml.safe_load(handle)
 
     if not config["coverage"]["design"]:
-        return None, None, None
+        return None, None, None, None
     else:
         design = pd.read_csv(config["coverage"]["design"], sep="\t")
         design["index"] = list(range(len(design)))
@@ -45,11 +45,49 @@ def get_coverage_data(config_file):
         if config["coverage"]["use_gffutils"]:
             dbname = config["coverage"]["dbname"] if config["coverage"]["dbname"] else None
             gff = read_gff_via_gffutils(config["coverage"]["gff"], dbname=dbname)
+            mapping = _compute_gff_lines(gff)
             gff = dbname
         else:
             gff = read_gff3(config["coverage"]["gff"])
 
-        return design, coverage, gff
+        return design, coverage, gff, mapping
+
+
+def _compute_gff_lines(gff: gffutils.FeatureDB):
+    genes = gff.execute(
+        """
+        SELECT f.*
+        FROM features f
+        LEFT JOIN relations r ON f.id = r.child
+        WHERE f.featuretype = 'gene' OR r.parent IS NULL
+        ORDER BY f.seqid, f.start, f.strand;
+        """
+    )
+    lines = []
+    mapping = {}
+    old_seqid = None
+    for row in genes:
+        seq_id = row["seqid"]
+        if seq_id != old_seqid:
+            lines = []
+            old_seqid = seq_id
+        idx = row["id"]
+        start, end = row['start'], row['end']
+        placed = False
+
+        # Try to place the span in an existing line
+        for i, line_end in enumerate(lines):
+            if start > line_end:
+                mapping[idx] = i
+                lines[i] = end
+                placed = True
+                break
+        # If no suitable line was found, create a new line
+        if not placed:
+            mapping[idx] = len(lines)
+            lines.append(end)
+    return mapping
+
 
 
 def read_files(config):
@@ -193,3 +231,4 @@ DASH_DATA = None
 COVERAGE_DATA = None
 COVERAGE_DESIGN = None
 GFF = None
+LINE_MAPPING = None
