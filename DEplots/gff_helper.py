@@ -5,6 +5,8 @@ import os
 
 GFF_COLNAMES = ['seqid', 'source', 'featuretype', 'start', 'end', 'score', 'strand', 'frame', 'attributes']
 
+FIVE_PRIME_NAMES = ["5'UTR", "5UTR", "five_prime_UTR"]
+THREE_PRIME_NAMES = ["3'UTR", "3UTR", "three_prime_UTR"]
 
 def parse_attributes(attributes):
     """
@@ -61,7 +63,7 @@ def coords_from_gff_row(row):
     return row["seqid"], row["start"], row.end, row.strand
 
 
-def read_gff_via_gffutils(file, dbname=None):
+def read_gff_via_gffutils(file, dbname=None, fix=True):
     if dbname is None:
         dir = TemporaryDirectory()
         os.path.join(dir.name, "GFF.db")
@@ -69,6 +71,92 @@ def read_gff_via_gffutils(file, dbname=None):
         db = gffutils.FeatureDB(dbfn=dbname)
     else:
         db = gffutils.create_db(file, dbfn=dbname, force=True, keep_order=True, merge_strategy="merge", id_spec="ID")
+        if fix:
+            fix_gff_db(dbname)
     return db
+
+
+def intervals_overlap(i1, i2):
+    return i1.start <= i2.end and i2.start <= i1.end
+
+
+def nearest_distance(i1, i2):
+    # Case 1: If i1 is completely before i2
+    if i1.end < i2.start:
+        return i2.start - i1.end
+    # Case 2: If i2 is completely before i1
+    elif i2.end < i1.start:
+        return i1.start - i2.end
+    # Case 3: If the intervals overlap
+    else:
+        return 0
+
+
+def fix_gff_db(dbfn: str):
+    db = gffutils.FeatureDB(dbfn)
+    n_genes = db.count_features_of_type("gene")
+    if n_genes == 0:
+        print("No genes detected - creating genes for CDS")
+        raise NotImplementedError
+    has_transcripts = bool(db.count_features_of_type("mRNA"))
+    last_gene_or_transcript = None
+    print("checking entries")
+    relations = []
+    for entry in db.all_features():
+        if entry.featuretype == "gene" or entry.featuretype == "mRNA":
+            last_gene_or_transcript = entry
+
+        elif entry.featuretype in [*FIVE_PRIME_NAMES, *THREE_PRIME_NAMES, "CDS"]:
+            parents = list(db.parents(entry.id))
+            if not parents:
+                if intervals_overlap(last_gene_or_transcript, entry):
+                    relations.append((last_gene_or_transcript, entry, False))
+                else:
+                    print("Non valid gff3 entry outside gene annotation detected. try to fix")
+                    res = list(db.region(strand=entry.strand, start=entry.start -10, end=entry.end+10, seqid=entry.seqid, featuretype="gene"))
+                    if res:
+                        nearest = min(res, key=lambda r: nearest_distance(r, entry))
+
+
+                        if nearest.end < entry.start:
+                            print("feature before. Extending gene downstream")
+                            if entry.featuretype == "CDS":
+                                continue
+                            db.delete([nearest])
+                            nearest.end = entry.end
+                            delete = True
+
+                        elif nearest.start > entry.end:
+                            if entry.featuretype == "CDS":
+                                continue
+                            db.delete([nearest])
+                            nearest.start = entry.start
+                            delete = True
+                            print("feature after extending gene upstream")
+                        else:
+                            delete = False
+                            print("overlapping")
+
+                        relations.append((nearest, entry, delete))
+    del db
+    db = gffutils.FeatureDB(dbfn)
+    for gene, target, need_to_add in relations:
+        if need_to_add:
+            db.update([gene])
+        db.add_relation(gene, target, level=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
