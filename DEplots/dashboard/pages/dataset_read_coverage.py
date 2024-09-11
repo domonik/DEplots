@@ -1,4 +1,5 @@
 import dash
+import gffutils
 import pandas as pd
 from dash import Input, Output, State, html, dcc, callback, dash_table
 import dash_bootstrap_components as dbc
@@ -10,6 +11,7 @@ from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST,
 import numpy as np
 from DEplots.readCount import plot_precomputed_coverage, GFF3_TYPE_TO_COLOR, css_color_to_rgba
 import time
+from DEplots.gff_helper import GFF_COLNAMES
 import math
 FEATURE_COLORS = GFF3_TYPE_TO_COLOR | {
     "gene": "rgb(219, 219, 219)",
@@ -168,11 +170,22 @@ def coverage_card():
 
 
 def gff_container():
-    data = GFF
-    data["id"] = data.index
-    data = data.to_dict('records')
-    cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
-    gff =  dbc.Col(
+
+    if isinstance(GFF, str):
+        data = gffutils.FeatureDB(GFF)
+        cs = data.all_features()
+        cols = GFF_COLNAMES
+        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {"attributes": str(row.attributes), "id": row.id} for row in cs]
+        cols = [{"name": i, "id": i} for i in cols if i != "id"]
+
+    elif isinstance(GFF, pd.DataFrame):
+        data = GFF
+        data["id"] = data.index
+        data = data.to_dict('records')
+        cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
+    else:
+        raise NotImplementedError()
+    gff = dbc.Col(
         dbc.Card(
             [
                 dbc.CardHeader(
@@ -250,7 +263,12 @@ def gff_container():
 
 
 def visible_gff_container():
-    cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
+    if isinstance(GFF, str):
+        cols = [{"name": i, "id": i} for i in GFF_COLNAMES if i != "id"]
+    elif isinstance(GFF, pd.DataFrame):
+        cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
+    else:
+        raise NotImplementedError
     gff =  dbc.Col(
         dbc.Card(
             [
@@ -442,10 +460,17 @@ def _calc_internal_params(display_start, display_end):
 def click_data_table(active_cell):
     if active_cell is None:
         raise dash.exceptions.PreventUpdate
-    data = GFF.iloc[active_cell["row_id"]]
-    start = max(data["start"] - 250, 0)
-    contig = data["seqid"]
-    end = min(COVERAGE_DATA[contig]["+"].shape[-1] - 1, data["end"] + 250)
+    if isinstance(GFF, pd.DataFrame):
+
+        data = GFF.iloc[active_cell["row_id"]]
+    elif isinstance(GFF, str):
+        db = gffutils.FeatureDB(GFF)
+        data = db[active_cell["row_id"]]
+    else: raise NotImplementedError
+
+    start = max(data.start - 250, 0)
+    contig = data.seqid
+    end = min(COVERAGE_DATA[contig]["+"].shape[-1] - 1, data.end + 250)
 
 
     return start, end, contig
@@ -494,10 +519,19 @@ def update_visible_table(start, end, contig, old_contig, axis_range):
     display_start = axis_range["xaxis.range[0]"]
     display_end = axis_range["xaxis.range[1]"]
     check_if_update_necessary(start, end, display_start, display_end, old_contig, contig)
-    data = GFF
-    data = data[(data["seqid"] == contig) & (data["start"] <= end) & (data["end"] >= start)]
-    data["id"] = data.index
-    data = data.to_dict('records')
+    if isinstance(GFF, pd.DataFrame):
+        data = GFF
+        data = data[(data["seqid"] == contig) & (data["start"] <= end) & (data["end"] >= start)]
+        data["id"] = data.index
+        data = data.to_dict('records')
+    elif isinstance(GFF, str):
+        db = gffutils.FeatureDB(GFF)
+        data = db.region(start=start, end=end, seqid=contig)
+        data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {"attributes": str(row.attributes), "id": row.id} for row in data]
+    else:
+        raise dash.exceptions.PreventUpdate
+
+
     return data
 
 
@@ -559,14 +593,15 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     print(internal_window, step)
     show_annotations = winsize <= 5000
     show_features = winsize <= 100000
+    gff = GFF if isinstance(GFF, pd.DataFrame) else gffutils.FeatureDB(GFF)
     fig = plot_precomputed_coverage(
         design,
         contig=contig,
         coverages=coverage,
         wstart=internal_window[0],
         wend=internal_window[1],
-        gff=GFF,
-        gff_name="locus_tag",
+        gff=gff,
+        gff_name="ID",
         vertical_spacing=0,
         arrow_size=winsize * 0.01,
         step=step,
@@ -613,7 +648,7 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     )
     range_max = 5.5
     fig.update_yaxes(
-        showgrid=False,
+        #showgrid=False,
         zeroline=False,
         range=[-0.5, range_max],
         row=2,
@@ -621,6 +656,8 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     if fig.layout["yaxis2"].maxallowed <= range_max:
         fig.update_yaxes(
             fixedrange = True,
+            range=[-0.5, fig.layout["yaxis2"].maxallowed],
+
             row=2
         )
     fig.update_yaxes(
@@ -629,10 +666,10 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
     )
     fig.update_yaxes(
         minallowed=-10,
-        row=2
+        row=3
     )
     if not autorange_y:
-        for axis in ["", "2"]:
+        for axis in ["", "3"]:
             axis = f"yaxis{axis}"
             fig["layout"][axis]["range"] = old_fig["layout"][axis]["range"]
 

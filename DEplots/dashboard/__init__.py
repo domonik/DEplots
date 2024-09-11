@@ -4,7 +4,7 @@ import pandas as pd
 from plotly import express as px
 import pickle
 from DEplots.readCount import precompute_from_design
-from DEplots.gff_helper import read_gff3
+from DEplots.gff_helper import read_gff3, read_gff_via_gffutils
 
 DIRPATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,9 +41,14 @@ def get_coverage_data(config_file):
         else:
             with open(file, "rb") as handle:
                 coverage = pickle.load(handle)
-        gff = read_gff3(config["coverage"]["gff"])
+        if config["coverage"]["use_gffutils"]:
+            dbname = config["coverage"]["dbname"] if config["coverage"]["dbname"] else None
+            gff = read_gff_via_gffutils(config["coverage"]["gff"], dbname=dbname)
+            gff = dbname
+        else:
+            gff = read_gff3(config["coverage"]["gff"])
 
-    return design, coverage, gff
+        return design, coverage, gff
 
 
 def read_files(config):

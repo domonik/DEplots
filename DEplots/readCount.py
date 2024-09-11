@@ -1,3 +1,4 @@
+import gffutils
 import pysam
 import numpy as np
 import plotly.graph_objs as go
@@ -243,6 +244,29 @@ def _compute_lines(df):
     df["line"] = df["line"].astype(int)
     return df
 
+
+def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size=None):
+    if type_colors is None:
+        type_colors = GFF3_TYPE_TO_COLOR
+    else:
+        type_colors = GFF3_TYPE_TO_COLOR | type_colors
+    v = 0.4
+    if arrow_size is None:
+        arrow_size = 0.01 * (wend - wstart)
+
+    data = gff.region(start=wstart, end=wend, seqid=contig)
+    traces = []
+    annotations = []
+    idx = 0
+    for idx, row in enumerate(data):
+        trace = _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name)
+        traces.append(
+            trace
+        )
+    return traces, annotations, np.arange(idx)
+
+
+
 def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
     if type_colors is None:
         type_colors = GFF3_TYPE_TO_COLOR
@@ -256,35 +280,13 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
         arrow_size = 0.01 * (wend - wstart)
 
     for (_, row) in gff.iterrows():
-        idx = row["line"]
-
-        if row["strand"] == "+":
-            y = [idx - v, idx - v, idx, idx + v, idx + v, idx - v]
-            pe = max(row["end"] - arrow_size, row["start"])
-            x = [row["start"], pe, row["end"], pe, row["start"], row["start"]]
-        elif row["strand"] == "-":
-            y = [idx, idx - v, idx - v, idx + v, idx + v, idx]
-            ps = min(row["start"] + arrow_size, row["end"])
-            x = [row["start"], ps, row["end"], row["end"], ps, row["start"]]
-        else:
-            y = [idx - v, idx - v, idx + v, idx + v, idx - v]
-            x = [row["start"], row["end"], row["end"], row["start"], row["start"]]
-        color = type_colors.get(row["type"], type_colors["default"])
+        idx = row.line
+        trace = _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name)
         traces.append(
-            go.Scatter(
-                y=y,
-                x=x,
-                mode="lines",
-                fillcolor=color,
-                line=dict(color="black"),
-                fill="toself",
-                name=f'{row["type"]}-{row[gff_name]}',
-
-            ),
-
+            trace
         )
 
-        if row["type"] not in DO_NOT_ANNOTATE:
+        if row["featuretype"] not in DO_NOT_ANNOTATE:
             annotations.append(
                 dict(
                     text=f'{row[gff_name]}',
@@ -296,6 +298,35 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
             )
     return traces, annotations, gff["line"]
 
+
+def _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name):
+    if row.strand == "+":
+        y = [idx - v, idx - v, idx, idx + v, idx + v, idx - v]
+        pe = max(row.end - arrow_size, row.start)
+        x = [row.start, pe, row.end, pe, row.start, row.start]
+    elif row.strand == "-":
+        y = [idx, idx - v, idx - v, idx + v, idx + v, idx]
+        ps = min(row.start + arrow_size, row.end)
+        x = [row.start, ps, row.end, row.end, ps, row.start]
+    else:
+        y = [idx - v, idx - v, idx + v, idx + v, idx - v]
+        x = [row.start, row.end, row.end, row.start, row.start]
+    color = type_colors.get(row.featuretype, type_colors["default"])
+    if isinstance(row, gffutils.Feature):
+        name = row.attributes[gff_name][0] if gff_name in row.attributes else row.id
+    else:
+        name = row[gff_name]
+    trace = go.Scatter(
+        y=y,
+        x=x,
+        mode="lines",
+        fillcolor=color,
+        line=dict(color="black"),
+        fill="toself",
+        name=f'{row.featuretype}-{name}',
+
+    )
+    return trace
 
 def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand, step, colors=None):
     tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "index": list})
@@ -342,8 +373,13 @@ def plot_precomputed_coverage(
     fig.add_traces(traces, rows=3, cols=1)
     fig.add_traces(errors, rows=3, cols=1)
     if show_features:
-        gff = filter_gff_by_interval(gff, contig, wstart, wend)
-        gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
+        if isinstance(gff, pd.DataFrame):
+            gff = filter_gff_by_interval(gff, contig, wstart, wend)
+            gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
+        elif isinstance(gff, gffutils.FeatureDB):
+            gff_traces, annotations, indices = _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size)
+        else:
+            raise NotImplementedError("Non supported feature database")
         fig.add_traces(
             gff_traces,
             rows=2,

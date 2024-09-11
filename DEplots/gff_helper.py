@@ -1,4 +1,9 @@
 import pandas as pd
+import gffutils
+from tempfile import TemporaryDirectory
+import os
+
+GFF_COLNAMES = ['seqid', 'source', 'featuretype', 'start', 'end', 'score', 'strand', 'frame', 'attributes']
 
 
 def parse_attributes(attributes):
@@ -20,7 +25,7 @@ def read_gff3(filepath):
     :param filepath: Path to the GFF3 file.
     :return: A pandas DataFrame containing the GFF3 data.
     """
-    column_names = ['seqid', 'source', 'type', 'start', 'end', 'score', 'strand', 'phase', 'attributes']
+    column_names = GFF_COLNAMES
     df = pd.read_csv(filepath, sep='\t', comment='#', header=None, names=column_names)
     attributes_df = df['attributes'].apply(parse_attributes).apply(pd.Series)
 
@@ -54,3 +59,16 @@ def find_gene_coordinates(gff, gene, anno_type):
 
 def coords_from_gff_row(row):
     return row["seqid"], row["start"], row.end, row.strand
+
+
+def read_gff_via_gffutils(file, dbname=None):
+    if dbname is None:
+        dir = TemporaryDirectory()
+        os.path.join(dir.name, "GFF.db")
+    if os.path.exists(dbname):
+        db = gffutils.FeatureDB(dbfn=dbname)
+    else:
+        db = gffutils.create_db(file, dbfn=dbname, force=True, keep_order=True, merge_strategy="merge", id_spec="ID")
+    return db
+
+
