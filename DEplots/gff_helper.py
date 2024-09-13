@@ -65,6 +65,11 @@ def coords_from_gff_row(row):
     return row["seqid"], row["start"], row.end, row.strand
 
 
+ID_SPEC = {
+    'gene': ["ID", 'gene_id', 'geneID'],
+    'transcript': ["ID", 'transcript_id', 'transcriptID'],
+}
+
 def read_gff_via_gffutils(file, dbname=None, fix=True):
     if dbname is None:
         dir = TemporaryDirectory()
@@ -72,7 +77,7 @@ def read_gff_via_gffutils(file, dbname=None, fix=True):
     if os.path.exists(dbname):
         db = gffutils.FeatureDB(dbfn=dbname)
     else:
-        db = gffutils.create_db(file, dbfn=dbname, force=True, keep_order=True, merge_strategy="merge", id_spec="ID")
+        db = gffutils.create_db(file, dbfn=dbname, force=True, keep_order=True, merge_strategy="merge", id_spec=ID_SPEC)
         if fix:
             fix_gff_db(dbname)
     return db

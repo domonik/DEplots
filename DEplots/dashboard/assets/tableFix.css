@@ -170,23 +170,23 @@ input:invalid {
 	box-shadow: inherit;
 }
 
-#visible-gff-table td.column-8 {
+#visible-gff-table td.column-9 {
     text-align: left !important;
 }
 
-#visible-gff-table td.column-8 input {
+#visible-gff-table td.column-9 input {
     text-align: left !important;
 }
 
-#gff-table td.column-8 {
+#gff-table td.column-9 {
     text-align: left !important;
 }
 
-#gff-table td.column-8 input {
+#gff-table td.column-9 input {
     text-align: left !important;
 }
 
-.gff-table .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.column-8 input:not([type="radio"]):not([type="checkbox"]) {
+.gff-table .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th.column-9 input:not([type="radio"]):not([type="checkbox"]) {
 	direction: ltr !important;
     text-align: left;
     margin-left: 5px;

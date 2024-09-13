@@ -72,6 +72,8 @@ def _compute_gff_lines(gff: gffutils.FeatureDB):
             lines = []
             old_seqid = seq_id
         idx = row["id"]
+        if idx in mapping:
+            raise KeyError("Key in mapping already exists")
         start, end = row['start'], row['end']
         placed = False
 

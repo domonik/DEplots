@@ -244,6 +244,18 @@ def _compute_lines(df):
     df["line"] = df["line"].astype(int)
     return df
 
+def _collect_children(gff, parent_id, idx):
+    children = [r for r in gff.children(parent_id) if r.id != parent_id]  # Get the direct children of the parent
+    result = [(idx, child) for child in children]  # Store the children with their idx
+    for child in children:
+        # Recursively collect the children of each child
+        result += _collect_children(gff, child.id, idx)
+
+    return result
+
+def deduplicate_preserve_order(items):
+    return list(dict.fromkeys(items))
+
 
 def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arrow_size=None, line_mapping=None):
     if type_colors is None:
@@ -277,15 +289,19 @@ def _add_gffutils_entries(gff, gff_name, wstart, wend, contig, type_colors, arro
             )
 
         )
-        children = list(gff.children(row.id))
-        print(children, row)
-        genes += [(idx, child) for child in children]
-        forbidden = forbidden | set([child.id for child in children] + [row.id])
+        children = deduplicate_preserve_order(_collect_children(gff, row.id, idx))
+        #children = list(gff.children(row.id))
+        genes += children
+        forbidden = forbidden | set([child.id for _, child in children] + [row.id])
         idx += 1
     data = list(gff.region(start=wstart, end=wend, seqid=contig))
     for row in data:
         if row.id not in forbidden:
             if line_mapping:
+                if row.id not in line_mapping:
+
+                    print(f'KeyError(f"ID {row.id} not found in the line mapping")')
+                    continue
                 idx = line_mapping[row.id]
                 if idx > m_idx:
                     m_idx = idx
@@ -359,6 +375,8 @@ def _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name):
         line=dict(color="black"),
         fill="toself",
         name=f'{row.featuretype}-{name}',
+        legendgroup="Annotations",
+        legendgrouptitle=dict(text="Annotations")
 
     )
     return trace
@@ -525,6 +543,7 @@ def precompute_from_design(design):
     for idx, row in design.iterrows():
         file = row["File"]
         index = row["index"]
+        pysam.index(file)
         samfile = pysam.AlignmentFile(file, "rb")
         for contig in samfile.references:
             yp = samfile.count_coverage(contig=contig, read_callback=filter_strand("+"))

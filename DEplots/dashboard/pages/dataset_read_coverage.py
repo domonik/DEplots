@@ -17,16 +17,16 @@ import math
 FEATURE_COLORS = GFF3_TYPE_TO_COLOR | {
     "gene": "rgb(219, 219, 219)",
     "mRNA": "rgb(219, 219, 219)",
-    "exon": "rgb(219, 219, 219)",
+    "exon": DOWN_COLOR_DARK,
     "CDS": UP_COLOR_DARK,
     "start_codon": UP_COLOR_LIGHT,
     "stop_codon": UP_COLOR_LIGHT,
     "five_prime_UTR": DOWN_COLOR_LIGHT,
     "5UTR": DOWN_COLOR_LIGHT,
     "5'UTR": DOWN_COLOR_LIGHT,
-    "three_prime_UTR": DOWN_COLOR_DARK,
-    "3UTR": DOWN_COLOR_DARK,
-    "3'UTR": DOWN_COLOR_DARK,
+    "three_prime_UTR": DOWN_COLOR_LIGHT,
+    "3UTR": DOWN_COLOR_LIGHT,
+    "3'UTR": DOWN_COLOR_LIGHT,
     "ncRNA": UP_COLOR_DARK,
     # "rRNA": px.colors.qualitative.Light24[9],
     # "tRNA": px.colors.qualitative.Light24[10],
@@ -177,9 +177,10 @@ def gff_container():
         data = gffutils.FeatureDB(GFF)
         cs = data.all_features()
         cols = GFF_COLNAMES
+
         data = [{colname: getattr(row, colname) for colname in GFF_COLNAMES if colname != "attributes"} | {
             "attributes": str(row).split("\t")[-1], "id": row.id} for row in cs]
-        cols = [{"name": i, "id": i, "type": TYPE_MAP[i]} for i in cols if i != "id"]
+        cols = [{"name": "id", "id": "id"}] + [{"name": i, "id": i, "type": TYPE_MAP[i]} for i in cols if i != "id"]
         print(cols)
 
     elif isinstance(GFF, pd.DataFrame):
@@ -281,7 +282,7 @@ def gff_container():
 
 def visible_gff_container():
     if isinstance(GFF, str):
-        cols = [{"name": i, "id": i} for i in GFF_COLNAMES if i != "id"]
+        cols = [{"name": "id", "id": "id"}] + [{"name": i, "id": i} for i in GFF_COLNAMES if i != "id"]
     elif isinstance(GFF, pd.DataFrame):
         cols = [{"name": i, "id": i} for i in GFF.columns if i != "id"]
     else:
@@ -619,7 +620,7 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
         wstart=internal_window[0],
         wend=internal_window[1],
         gff=gff,
-        gff_name="ID",
+        gff_name="gene_name",
         vertical_spacing=0,
         arrow_size=winsize * 0.01,
         step=step,
