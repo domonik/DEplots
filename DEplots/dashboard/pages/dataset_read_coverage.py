@@ -7,7 +7,7 @@ from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
 from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_deseq
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
-    UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF, LINE_MAPPING
+    UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, COVERAGE_DATA, COVERAGE_DESIGN, GFF, LINE_MAPPING, GFF_ATTRIBUTES
 import numpy as np
 from DEplots.readCount import plot_precomputed_coverage, GFF3_TYPE_TO_COLOR, css_color_to_rgba
 import time
@@ -37,6 +37,9 @@ if COVERAGE_DATA is not None:
     dash.register_page(__name__, path='/coverage', name="Read Coverage")
     TRACE_COLORS = {trace: DEFAULT_PLOTLY_COLORS_LIST[idx] for idx, trace in
                     enumerate(COVERAGE_DESIGN.Treatment.unique())}
+else:
+    TRACE_COLORS = None
+
 SETTINGS_ROW = "px-2"
 SETTINGS_COL = "py-2 d-flex align-items-center justify-content-between"
 SETTINGS_LABEL = {"className": "me-3", "style": {"min-width": "30%"}}
@@ -114,7 +117,7 @@ def coverage_card():
                 dbc.CardHeader(
                     dbc.Row(
                         [
-                            dbc.Col(html.H5("Coverage"), width=4),
+                            dbc.Col(html.H5("Coverage"), width=2),
                             dbc.Col(html.Span("Trace"), width=1,
                                     className="d-flex align-items-center justify-content-end"),
                             dbc.Col(dcc.Dropdown(
@@ -138,7 +141,17 @@ def coverage_card():
                                 width=1,
                                 className="d-flex align-items-center"
 
-                            )
+                            ),
+                            dbc.Col(html.Span("Gene Annotation"), width=1,
+                                    className="d-flex align-items-center justify-content-end"),
+                            dbc.Col(dcc.Dropdown(
+                                options=GFF_ATTRIBUTES,
+                                value=GFF_ATTRIBUTES[0],
+                                style={"width": "100%"},
+                                id="gene-attribute",
+                                clearable=False
+
+                            ), width=3, className="d-flex align-items-center"),
 
                         ]
 
@@ -368,45 +381,48 @@ def visible_gff_container():
     )
     return gff
 
+if COVERAGE_DATA is not None:
+    def get_layout():
+        lout = html.Div(
+            [
+                dcc.Store(id="x-axis-range", data={"xaxis.range[0]": 1, "xaxis.range[1]": 2000, "yaxis2.range[0]": -0.5,
+                                                   "y2axis.range[1]": 5.5}),
+                dcc.Store(id="internal-axis-range", data=[0, 2000]),
+                dcc.Store(id="placeholder1", data=None),
+                dcc.Store(id="current-contig", data=None),
+                dcc.Store(id="trace-colors", data=TRACE_COLORS),
+                dbc.Container(
+                    [
+                        dbc.Row(
+                            coverage_card(),
+                            className="py-1"
 
-def get_layout():
-    lout = html.Div(
-        [
-            dcc.Store(id="x-axis-range", data={"xaxis.range[0]": 1, "xaxis.range[1]": 2000, "yaxis2.range[0]": -0.5,
-                                               "y2axis.range[1]": 5.5}),
-            dcc.Store(id="internal-axis-range", data=[0, 2000]),
-            dcc.Store(id="placeholder1", data=None),
-            dcc.Store(id="current-contig", data=None),
-            dcc.Store(id="trace-colors", data=TRACE_COLORS),
-            dbc.Container(
-                [
-                    dbc.Row(
-                        coverage_card(),
-                        className="py-1"
+                        ),
+                        dbc.Row(
+                            coverage_settings_card(),
+                        ),
+                        dbc.Row(
+                            [
 
-                    ),
-                    dbc.Row(
-                        coverage_settings_card(),
-                    ),
-                    dbc.Row(
-                        [
+                                gff_container(),
+                                visible_gff_container(),
+                            ],
 
-                            gff_container(),
-                            visible_gff_container(),
-                        ],
+                            className="py-1"
 
-                        className="py-1"
+                        ),
 
-                    ),
+                    ],
+                    fluid=True,
+                    className="dbc"
+                )
+            ]
+        )
+        return lout
 
-                ],
-                fluid=True,
-                className="dbc"
-            )
-        ]
-    )
-    return lout
-
+else:
+    def get_layout():
+        return None
 
 def _is_zoom_relayout(old_rlout_data, new_rlout_data):
     old_winsize = old_rlout_data["xaxis.range[1]"] - old_rlout_data["xaxis.range[0]"]
@@ -519,7 +535,7 @@ def update_via_contig(contig, start, end):
 
 
 def check_if_update_necessary(start, end, display_start, display_end, old_contig, contig):
-    if dash.ctx.triggered_id != "mode-switch" and old_contig == contig:
+    if dash.ctx.triggered_id not in ["mode-switch", "gene-attribute"] and old_contig == contig:
         if any(i is None for i in (start, end)):
             raise dash.exceptions.PreventUpdate
         if int(display_start) == int(start) and int(display_end) == int(end):
@@ -590,6 +606,7 @@ def my_callback(trace_colors, fig):
     Input("coverage-start", "value"),
     Input("coverage-end", "value"),
     Input("mode-switch", "value"),
+    Input("gene-attribute", "value"),
     State("contig", "value"),
     State("current-contig", "data"),
     State("x-axis-range", "data"),
@@ -598,7 +615,7 @@ def my_callback(trace_colors, fig):
     State("trace-colors", "data"),
 
 )
-def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, autorange_y, old_fig, trace_colors):
+def update_coverage_plot(start, end, switch, attribute, contig, old_contig, axis_range, autorange_y, old_fig, trace_colors):
     design = COVERAGE_DESIGN
     coverage = COVERAGE_DATA
     display_start = axis_range["xaxis.range[0]"]
@@ -620,7 +637,7 @@ def update_coverage_plot(start, end, switch, contig, old_contig, axis_range, aut
         wstart=internal_window[0],
         wend=internal_window[1],
         gff=gff,
-        gff_name="gene_name",
+        gff_name=attribute,
         vertical_spacing=0,
         arrow_size=winsize * 0.01,
         step=step,

@@ -28,7 +28,7 @@ def get_coverage_data(config_file):
         config = yaml.safe_load(handle)
 
     if not config["coverage"]["design"]:
-        return None, None, None, None
+        return None, None, None, None, None
     else:
         design = pd.read_csv(config["coverage"]["design"], sep="\t")
         design["index"] = list(range(len(design)))
@@ -45,12 +45,14 @@ def get_coverage_data(config_file):
         if config["coverage"]["use_gffutils"]:
             dbname = config["coverage"]["dbname"] if config["coverage"]["dbname"] else None
             gff = read_gff_via_gffutils(config["coverage"]["gff"], dbname=dbname)
-            mapping = _compute_gff_lines(gff)
+            mapping, keys = _compute_gff_lines(gff)
             gff = dbname
         else:
             gff = read_gff3(config["coverage"]["gff"])
+            keys = [ col for col in gff.columns]
+            mapping = None
 
-        return design, coverage, gff, mapping
+        return design, coverage, gff, mapping, keys
 
 
 def _compute_gff_lines(gff: gffutils.FeatureDB):
@@ -65,6 +67,7 @@ def _compute_gff_lines(gff: gffutils.FeatureDB):
     )
     lines = []
     mapping = {}
+    attributes = {}
     old_seqid = None
     for row in genes:
         seq_id = row["seqid"]
@@ -76,6 +79,12 @@ def _compute_gff_lines(gff: gffutils.FeatureDB):
             raise KeyError("Key in mapping already exists")
         start, end = row['start'], row['end']
         placed = False
+        keys = eval(row["attributes"]).keys()
+        for key in keys:
+            if key in attributes:
+                attributes[key] += 1
+            else: attributes[key] = 0
+
 
         # Try to place the span in an existing line
         for i, line_end in enumerate(lines):
@@ -88,7 +97,8 @@ def _compute_gff_lines(gff: gffutils.FeatureDB):
         if not placed:
             mapping[idx] = len(lines)
             lines.append(end)
-    return mapping
+    sorted_keys = sorted(attributes, key=attributes.get, reverse=True)
+    return mapping, sorted_keys
 
 
 
@@ -234,3 +244,4 @@ COVERAGE_DATA = None
 COVERAGE_DESIGN = None
 GFF = None
 LINE_MAPPING = None
+GFF_ATTRIBUTES = None

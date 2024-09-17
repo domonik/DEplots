@@ -104,7 +104,7 @@ def fix_gff_db(dbfn: str):
     n_genes = db.count_features_of_type("gene")
     if n_genes == 0:
         print("No genes detected - creating genes for CDS")
-        raise NotImplementedError
+
     has_transcripts = bool(db.count_features_of_type("mRNA"))
     last_gene_or_transcript = None
     print("checking entries")

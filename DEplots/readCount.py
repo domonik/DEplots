@@ -464,6 +464,7 @@ def plot_precomputed_coverage(
         showticklabels=False,
         row=2,
     )
+    fig.update_layout(legend=dict(groupclick="toggleitem"))
     return fig
 
 

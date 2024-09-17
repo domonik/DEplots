@@ -17,7 +17,7 @@ def _dash_parser(subparsers, name):
         '--run-dir',
         type=str,
         help="Path to the config file containing configuration for dash app",
-        default=None
+        default=""
     )
     parser.add_argument(
         '--port',

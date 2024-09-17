@@ -483,7 +483,7 @@ def get_gsea_plot(selected_rows, switch, dataset_key, comp):
     cond = DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"]
     baseline = DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"]
     if df is not None and len(df) > 0:
-        fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST, show_zero_lfc=True, condition_name=cond, base_name=baseline, gene_list_name="log2FC")
+        fig = plot_gsea(plot_data, descs=descs, colors=DEFAULT_PLOTLY_COLORS_LIST, show_zero_lfc=True, condition_name=cond, base_name=baseline, gene_list_name="log2FC", vertical_spacing=0)
     elif df is None:
         fig = empty_figure("No GSEA file found for dataset")
     else:
