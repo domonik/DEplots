@@ -33,15 +33,20 @@ def get_coverage_data(config_file):
         design = pd.read_csv(config["coverage"]["design"], sep="\t")
         design["index"] = list(range(len(design)))
         file = config["coverage"]["precomputed_file"]
+        hash = pd.util.hash_pandas_object(design)
 
         if not os.path.exists(file):
             coverage = precompute_from_design(design)
 
             with open(file, "wb") as handle:
-                pickle.dump(coverage, handle)
-        else:
-            with open(file, "rb") as handle:
-                coverage = pickle.load(handle)
+                pickle.dump((coverage, hash), handle)
+
+        with open(file, "rb") as handle:
+            coverage, d_hash = pickle.load(handle)
+
+        if not all(hash == d_hash):
+            raise ValueError(f"Hash values dont match please delete {file} and  rerun")
+
         if config["coverage"]["use_gffutils"]:
             dbname = config["coverage"]["dbname"] if config["coverage"]["dbname"] else None
             gff = read_gff_via_gffutils(config["coverage"]["gff"], dbname=dbname)
