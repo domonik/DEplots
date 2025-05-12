@@ -1,5 +1,6 @@
 from DEplots.volcano import volcano_from_deseq_result
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
+from DEplots.qc import pheatmap, sample_pca
 import dash
 from dash import callback, html, clientside_callback, Input, Output, dcc, dash_table, State, Patch
 from dash.exceptions import PreventUpdate
@@ -269,6 +270,58 @@ def get_gsea_box():
     return gsea_box
 
 
+def _get_qc_card():
+    div = [
+        dbc.Col(
+            dbc.Card(
+                [
+                    dbc.CardHeader(
+                        dbc.Row(
+                            [
+                                dbc.Col(html.H5("Sample Correlation"), width=6),
+                            ]
+
+                        ),
+
+                    ),
+                    dbc.Col(
+                        dcc.Graph(id="correlation-graph", ), width=12,
+
+                    ),
+
+                ],
+                className="shadow",
+            ),
+            width=12, md=6
+        ),
+        dbc.Col(
+            [
+                dbc.Card(
+                    [
+                        dbc.CardHeader(
+                            dbc.Row(
+                                [
+                                    dbc.Col(html.H5("Sample PCA"), width=6),
+                                ]
+
+                            ),
+
+                        ),
+                        dbc.Col(
+                            dcc.Graph(id="pca-graph", ), width=12,
+                                ),
+
+                    ],
+                    className="shadow",
+                ),
+
+            ],
+            width=12, md=6
+        )
+    ]
+    return div
+
+
 def get_layout(dash_data):
     layout = html.Div([
         dcc.Store(data={}, id="volcano-highlight-ids"),
@@ -402,6 +455,10 @@ def get_layout(dash_data):
 
                     ],
 
+                    className="py-1",
+                ),
+                dbc.Row(
+                    _get_qc_card(),
                     className="py-1",
                 ),
 
@@ -616,6 +673,75 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
         fig.update_layout(LAYOUT)
 
     return fig
+
+
+@callback(
+    Output("correlation-graph", "figure"),
+    Input("dataset-dd", "value"),
+    Input("mode-switch", "value"),
+)
+def create_qc(dataset_key, switch):
+
+    df = DASH_DATA[0][dataset_key]["qc"].get("correlation", None)
+    cu = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
+    cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
+    tcol = "black" if switch else "white"
+    bg_col = "white" if switch else None
+    if df is not None:
+        fig = pheatmap(df, colorscale=[cu, cd], tree_color=tcol, vertical_spacing=0, horizontal_spacing=0)
+        if not switch:
+            fig.update_layout(DARK_LAYOUT)
+        else:
+            fig.update_layout(LAYOUT)
+            for p in ["", 4]:
+                fig.add_shape(
+                    type='rect',
+                    xref=f'x{p}', yref=f'y{p}',
+                    x0=-100, x1=100,
+                    y0=-100, y1=100,  # row 1 (top)
+                    fillcolor=bg_col,  # fully transparent
+                    line=dict(width=0),
+                    layer='below'
+                )
+        fig.update_yaxes(showline=False, showgrid=False, zeroline=False, col=2)
+        fig.update_yaxes(showline=False, showgrid=False, zeroline=False, row=1, showticklabels=False)
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, col=2, showticklabels=False)
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, row=1)
+
+    else:
+        fig = empty_figure("No Correlation file found for dataset")
+        if not switch:
+            fig.update_layout(DARK_LAYOUT)
+        else:
+            fig.update_layout(LAYOUT)
+
+    return fig
+
+
+@callback(
+    Output("pca-graph", "figure"),
+    Input("dataset-dd", "value"),
+    Input("mode-switch", "value"),
+)
+def create_qc(dataset_key, switch):
+    df = DASH_DATA[0][dataset_key]["qc"].get("pca", None)
+    cu = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
+    cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
+    if df is not None:
+        colors = [cu, cd]
+        colors = DEFAULT_PLOTLY_COLORS_LIST
+        fig = sample_pca(df, colors=colors)
+        fig.update_traces(marker=dict(size=10))
+    else:
+        fig = empty_figure("No PCA file found for dataset")
+    if not switch:
+        fig.update_layout(DARK_LAYOUT)
+    else:
+        fig.update_layout(LAYOUT)
+
+    return fig
+
+
 
 
 

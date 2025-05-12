@@ -21,92 +21,6 @@ def get_data(config_file: str = None, run_dir: str = None,):
     return read_files(config)
 
 
-def get_coverage_data(config_file):
-    if config_file is None:
-        config_file = os.path.join(DIRPATH, "default_config.yaml")
-    with open(config_file, "r") as handle:
-        config = yaml.safe_load(handle)
-
-    if not config["coverage"]["design"]:
-        return None, None, None, None, None
-    else:
-        design = pd.read_csv(config["coverage"]["design"], sep="\t")
-        design["index"] = list(range(len(design)))
-        file = config["coverage"]["precomputed_file"]
-        hash = pd.util.hash_pandas_object(design)
-
-        if not os.path.exists(file):
-            coverage = precompute_from_design(design)
-
-            with open(file, "wb") as handle:
-                pickle.dump((coverage, hash), handle)
-
-        with open(file, "rb") as handle:
-            coverage, d_hash = pickle.load(handle)
-
-        if not all(hash == d_hash):
-            raise ValueError(f"Hash values dont match please delete {file} and  rerun")
-
-        if config["coverage"]["use_gffutils"]:
-            dbname = config["coverage"]["dbname"] if config["coverage"]["dbname"] else None
-            gff = read_gff_via_gffutils(config["coverage"]["gff"], dbname=dbname)
-            mapping, keys = _compute_gff_lines(gff)
-            gff = dbname
-        else:
-            gff = read_gff3(config["coverage"]["gff"])
-            keys = [ col for col in gff.columns]
-            mapping = None
-
-        return design, coverage, gff, mapping, keys
-
-
-def _compute_gff_lines(gff: gffutils.FeatureDB):
-    genes = gff.execute(
-        """
-        SELECT f.*
-        FROM features f
-        LEFT JOIN relations r ON f.id = r.child
-        WHERE f.featuretype = 'gene' OR r.parent IS NULL
-        ORDER BY f.seqid, f.start, f.strand;
-        """
-    )
-    lines = []
-    mapping = {}
-    attributes = {}
-    old_seqid = None
-    for row in genes:
-        seq_id = row["seqid"]
-        if seq_id != old_seqid:
-            lines = []
-            old_seqid = seq_id
-        idx = row["id"]
-        if idx in mapping:
-            raise KeyError("Key in mapping already exists")
-        start, end = row['start'], row['end']
-        placed = False
-        keys = eval(row["attributes"]).keys()
-        for key in keys:
-            if key in attributes:
-                attributes[key] += 1
-            else: attributes[key] = 0
-
-
-        # Try to place the span in an existing line
-        for i, line_end in enumerate(lines):
-            if start > line_end:
-                mapping[idx] = i
-                lines[i] = end
-                placed = True
-                break
-        # If no suitable line was found, create a new line
-        if not placed:
-            mapping[idx] = len(lines)
-            lines.append(end)
-    sorted_keys = sorted(attributes, key=attributes.get, reverse=True)
-    return mapping, sorted_keys
-
-
-
 def read_files(config):
     if config["run_dir"]:
         runs = os.listdir(config["run_dir"])
@@ -132,8 +46,23 @@ def read_files(config):
             dirname = os.path.dirname(file)
             dash_data[name] = {
                 "comparisons": {},
-                "config": d
+                "config": d,
+                "qc": {}
             }
+            corr_file = os.path.join(dirname, f"PipelineData/IntermediateData/CorrData.tsv")
+            pca_file = os.path.join(dirname, f"PipelineData/IntermediateData/PCAData.tsv")
+            if os.path.exists(corr_file):
+                corr = pd.read_csv(corr_file, sep="\t")
+                dash_data[name]["qc"]["correlation"] = corr
+            else:
+                print(f"Correlation file {corr_file} was not found")
+            if os.path.exists(pca_file):
+                pca = pd.read_csv(pca_file, sep="\t")
+                dash_data[name]["qc"]["pca"] = pca
+            else:
+                print(f"PCA file {pca_file} was not found")
+
+
             for (condition, baseline) in zip(d["conditions"], d["baselines"]):
                 comp_file = os.path.join(dirname, f"PipelineData/DESeqResults/DESeqResult_c{condition}_vs_b{baseline}.tsv")
 
