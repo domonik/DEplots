@@ -134,7 +134,7 @@ def filter_strand(strand):
 
 def get_trace(file, name, color, strand: str = None, size_factor: float = None,  **kwargs):
     samfile = pysam.AlignmentFile(file, "rb")
-
+    kwargs["start"] = max(kwargs["start"], 0)
     y = samfile.count_coverage(read_callback=filter_strand(strand), **kwargs)
     y = np.asarray(y).sum(axis=0)
     if size_factor:
@@ -205,6 +205,7 @@ def _sum_trace(y, color, name, start, step: int = 1):
 def get_summary_trace(files, name, color, strand, size_factors=None, **kwargs):
     t = []
     start = kwargs["start"] if "start" in kwargs else 0
+    kwargs["start"] = max(kwargs["start"], 0)
     for idx, file in enumerate(files):
         samfile = pysam.AlignmentFile(file, "rb")
         y = samfile.count_coverage(read_callback=filter_strand(strand), **kwargs)
@@ -477,7 +478,6 @@ def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = N
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, **kwargs)
     wstart = start - extend
     wend = stop + extend
-    gff = filter_gff_by_interval(gff, contig, wstart, wend)
     if gff_types:
         gff = gff[gff["type"].isin(gff_types)]
     if strand:
@@ -514,25 +514,28 @@ def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = N
             rows=1,
             cols=1
         )
-    gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors)
-    fig.add_traces(
-        gff_traces,
-        rows=2,
-        cols=1
-    )
-    for anno in annotations:
-        fig.add_annotation(
-            anno,
-            row=2, col=1
+    if gff:
+        gff = filter_gff_by_interval(gff, contig, wstart, wend)
+        gff_traces, annotations, indices = _add_gff_entries(gff, gff_name, wstart, wend, type_colors)
+        fig.add_traces(
+            gff_traces,
+            rows=2,
+            cols=1
+        )
+        for anno in annotations:
+            fig.add_annotation(
+                anno,
+                row=2, col=1
+            )
+        fig.update_yaxes(
+            tickvals=list(range(len(indices))),
+            ticktext=list(indices.keys()),
+            tickmode="array",
+            row=2
         )
 
     fig.update_xaxes(range=[wstart, wend])
-    fig.update_yaxes(
-        tickvals=list(range(len(indices))),
-        ticktext=list(indices.keys()),
-        tickmode="array",
-        row=2
-    )
+
     return fig
 
 
