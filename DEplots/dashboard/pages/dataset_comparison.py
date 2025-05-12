@@ -84,8 +84,30 @@ def get_table():
             dbc.CardHeader(
                 dbc.Row(
                     [
-                        dbc.Col(html.H5("Multi DESeq table"), width=3, align="center"),
+                        dbc.Col([
+                            html.H5("Multi DESeq table"),
 
+                        ]
+                            , width=3, align="center",
+                        ),
+                        dbc.Col(
+                            html.Span(
+                                [
+                                    html.I(className="fas fa-xl fa-question-circle fa px-2",
+                                           id="filter-tip"),
+                                    dbc.Tooltip(
+                                        "You can filter this table for up/down-regulated genes in the"
+                                        " intersection of datasets. You can also click on the corresponding "
+                                        "intersection in the upset "
+                                        "plot below the table.",
+                                        target="filter-tip"),
+                                ],
+
+                            ),
+                            width=1,
+                            className="d-flex align-items-center justify-content-end"
+
+                        ),
                         dbc.Col(
                             [
                                 dcc.Dropdown(
@@ -127,7 +149,7 @@ def get_table():
                                 persistence_type="session",
 
                             ),
-                            width=5
+                            width=4
                         ),
 
                     ],
@@ -542,10 +564,15 @@ def update_datasets_table(datasets, filter_set, filter_ud, filter_op, current_pa
                 # only works with complete fields in standard format
                 df = df.loc[df[col_name].str.startswith(filter_value)]
     if sort_by:
+        sort_by_filtered = []
         for i, col in enumerate(sort_by):
-            sort_by[i]["column_id"] = tuple(col["column_id"].split("_"))
+            t = tuple(col["column_id"].split("_"))
+            if t in df.columns:
+                sort_by_filtered.append( sort_by[i] |{"column_id": t})
+        sort_by = sort_by_filtered
         if len(sort_by):
-            sort_vals = [col['column_id'] for col in sort_by]
+            sort_vals = [col['column_id'] for col in sort_by if col["column_id"]]
+            print("sort vals", sort_vals)
             df = df.sort_values(
                 sort_vals,
                 ascending=[
