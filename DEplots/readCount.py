@@ -10,6 +10,7 @@ import re
 from typing import Dict
 
 from DEplots.gff_helper import read_gff3, filter_gff_by_interval, find_gene_coordinates, coords_from_gff_row
+from DEplots.process_coverage import precompute_from_design, filter_strand
 
 # Regex patterns to match different CSS color formats
 hex_pattern = re.compile(r'^#([0-9a-fA-F]{3,8})$')
@@ -42,6 +43,63 @@ DO_NOT_ANNOTATE = [
    key for key in GFF3_TYPE_TO_COLOR.keys() if "UTR" in key or "codon" in key
 ]
 
+
+def empty_figure(annotation: str = None):
+    fig = make_subplots(rows=3, cols=1)
+    fig.update_yaxes(showticklabels=False, showgrid=False)
+    fig.update_xaxes(showgrid=False, showticklabels=False)
+    fig.update_layout(
+        margin={"t": 0, "b": 0, "r": 50},
+        font=dict(
+            size=16,
+        ),
+        yaxis=dict(zeroline=False),
+        xaxis=dict(zeroline=False),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+
+    )
+    if annotation is not None:
+        fig.add_annotation(
+            xref="paper",
+            yref="y2 domain",
+            xanchor="center",
+            yanchor="middle",
+            x=0.5,
+            y=0.5,
+            text=annotation,
+            showarrow=False,
+            font=(dict(size=28))
+        )
+    fig.layout.template = "plotly_white"
+    for row in range(1, 4):
+        fig.add_trace(go.Scatter(
+
+            x=[None],
+            y=[None],
+            showlegend=False,
+
+        ),
+            row=row,
+            col=1
+        )
+    fig.update_layout(
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+
+    )
+    fig.update_xaxes(
+        showline=True,
+        mirror=True,
+
+    )
+    fig.update_yaxes(
+        showline=True,
+        mirror=True,
+        row=2
+
+    )
+    return fig
 
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
@@ -120,17 +178,6 @@ def css_color_to_rgba(color, opacity):
 
     raise ValueError("Invalid CSS color format.")
 
-def filter_strand(strand):
-    if strand == "+":
-        def filter_read(read):
-         return not read.is_reverse
-    elif strand == "-":
-        def filter_read(read):
-            return read.is_reverse
-    else:
-        return "all"
-    return filter_read
-
 
 def get_trace(file, name, color, strand: str = None, size_factor: float = None,  **kwargs):
     samfile = pysam.AlignmentFile(file, "rb")
@@ -154,17 +201,18 @@ def _sum_trace(y, color, name, start, step: int = 1):
     x = np.arange(start, start + y.shape[-1])
     x = x[::step]
     qx = np.concatenate((x, np.flip(x)), axis=0)
-    y = np.apply_along_axis(lambda m: np.convolve(m, step, mode="same"), axis=-1, arr=y)
+    kernel = np.ones(step) / step
+    y = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), axis=-1, arr=y)
     y = y[:, ::step]
     mean_y = np.mean(y, axis=0)
     median_y = np.median(y, axis=0)
     q25 = np.quantile(y, q=0.25, axis=0)
     q75 = np.quantile(y, q=0.75, axis=0)
     quantiles = np.concatenate((q75, np.flip(q25)), axis=0)
-
+    scatter = go.Scatter if step < 5 else go.Scattergl
 
     traces = [
-        go.Scatter(
+        scatter(
             x=x,
             y=median_y,
             name=f"Median",
@@ -174,7 +222,7 @@ def _sum_trace(y, color, name, start, step: int = 1):
             legendgrouptitle=dict(text=name),
 
         ),
-        go.Scatter(
+        scatter(
             x=x,
             y=mean_y,
             name=f"Mean",
@@ -187,7 +235,7 @@ def _sum_trace(y, color, name, start, step: int = 1):
     a_color = css_color_to_rgba(color, 0.4)
 
     errors = [
-        go.Scatter(
+        scatter(
             x=qx,
             y=quantiles,
             marker=dict(color=color),
@@ -202,7 +250,7 @@ def _sum_trace(y, color, name, start, step: int = 1):
     return traces, errors
 
 
-def get_summary_trace(files, name, color, strand, size_factors=None, **kwargs):
+def get_summary_trace(files, name, color, strand, size_factors=None, step=1, **kwargs):
     t = []
     start = kwargs["start"] if "start" in kwargs else 0
     kwargs["start"] = max(kwargs["start"], 0)
@@ -215,7 +263,7 @@ def get_summary_trace(files, name, color, strand, size_factors=None, **kwargs):
 
         t.append(y)
     y = np.asarray(t)
-    traces, errors = _sum_trace(y, color, name, start)
+    traces, errors = _sum_trace(y, color, name, start, step=step)
 
     return traces, errors
 
@@ -324,7 +372,6 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
         type_colors = GFF3_TYPE_TO_COLOR
     else:
         type_colors = GFF3_TYPE_TO_COLOR | type_colors
-    gff = gff[~gff[gff_name].isna()]
     gff = _compute_lines(gff)
     traces, annotations = [], []
     v = 0.4
@@ -338,7 +385,7 @@ def _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size=None):
             trace
         )
 
-        if row["featuretype"] not in DO_NOT_ANNOTATE:
+        if not (row["featuretype"] in DO_NOT_ANNOTATE or pd.isna(row[gff_name])):
             annotations.append(
                 dict(
                     text=f'{row[gff_name]}',
@@ -366,8 +413,10 @@ def _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name):
     color = type_colors.get(row.featuretype, type_colors["default"])
     if isinstance(row, gffutils.Feature):
         name = row.attributes[gff_name][0] if gff_name in row.attributes else row.id
+        hovertext = "<br>".join([f"{key}: {','.join(value)}" for key, value in row.attributes.items()])
     else:
         name = row[gff_name]
+        hovertext=None
     trace = go.Scatter(
         y=y,
         x=x,
@@ -376,11 +425,13 @@ def _trace_from_row(row, idx, v, arrow_size, type_colors, gff_name):
         line=dict(color="black"),
         fill="toself",
         name=f'{row.featuretype}-{name}',
+        text=hovertext,
         legendgroup="Annotations",
         legendgrouptitle=dict(text="Annotations")
 
     )
     return trace
+
 
 def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.ndarray], wstart, wend, strand, step, colors=None):
     tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "index": list})
@@ -398,36 +449,86 @@ def traces_from_precomputed_coverage(design, contig, coverages: Dict[str, np.nda
     return traces, errors
 
 
+def traces_from_design(design, contig, wstart, wend, strand, colors, step):
+    tmp = design.groupby(["Treatment"], as_index=False, observed=False).agg({"File": list, "Size factors": list}
+                                                                                ).dropna().reset_index()
+    if colors is None:
+        colors = {trace: px.colors.qualitative.Light24[idx] for idx, trace in enumerate(design.Treatment)}
+    t = []
+    e = []
+    for idx, row in tmp.iterrows():
+        name = row["Treatment"]
+        color = colors[row["Treatment"]]
+        sfs = row["Size factors"]
+
+        traces, errors = get_summary_trace(row["File"], name=name, contig=contig, start=wstart, stop=wend,
+                                           strand=strand, color=color, size_factors=sfs, step=step)
+        t += traces
+        e += errors
+    return t, e
+
+
 def plot_precomputed_coverage(
         design,
-        contig, coverages: Dict[str, np.ndarray],
+        contig,
         wstart,
         wend,
-        gff,
-        gff_name,
+        strand: str = None,
+        gff = None,
+        gff_name = None,
+        coverages: Dict[str, np.ndarray] = None,
         colors=None,
         type_colors=None,
         arrow_size=None,
         step: int = 1,
         show_annotations: bool = True,
-        show_features: bool = True,
         line_mapping: Dict = None,
+        force: bool =False,
         **kwargs):
     wstart = max(int(wstart), 0)
-    wend = min(int(wend), coverages[contig]["+"].shape[-1])
-    fig = make_subplots(rows=3, shared_xaxes=True, **kwargs)
-    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "+", step, colors)
-    fig.add_traces(traces, rows=1, cols=1)
-    fig.add_traces(errors, rows=1, cols=1)
+    rows = 3 if strand is None else 2
+    fig = make_subplots(rows=rows, shared_xaxes=True, **kwargs)
+    if strand == "+" or strand is None:
+        if coverages is not None:
+            wend = min(int(wend), coverages[contig]["+"].shape[-1])
+            traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "+", step, colors)
 
-    traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "-", step, colors)
-    for trace in traces:
-        trace.update(showlegend=False)
-    for error in errors:
-        error.update(showlegend=False)
-    fig.add_traces(traces, rows=3, cols=1)
-    fig.add_traces(errors, rows=3, cols=1)
-    if show_features:
+        else:
+            if force or (wend - wstart) <= 4001:
+                traces, errors = traces_from_design(design, contig, wstart, wend, "+", colors, step)
+            else:
+                traces = [go.Scatter(x=[None], y=[None], showlegend=False)]
+                errors = []
+                fig.add_annotation(
+                    xref="paper",
+                    yref="y domain",
+                    xanchor="center",
+                    yanchor="middle",
+                    x=0.5,
+                    y=0.5,
+                    text="Decrease window size or use precomputed coverage for plotting",
+                    showarrow=False,
+                    font=(dict(size=28))
+                )
+        fig.add_traces(traces, rows=1, cols=1)
+        fig.add_traces(errors, rows=1, cols=1)
+    if strand == "-" or strand is None:
+        row = 1 if strand == "-" else 3
+        if coverages is not None:
+            traces, errors = traces_from_precomputed_coverage(design, contig, coverages, wstart, wend, "-", step, colors)
+        else:
+            if force or (wend - wstart) <= 4001:
+                traces, errors = traces_from_design(design, contig, wstart, wend, "-", colors, step)
+            else:
+                traces = [go.Scatter(x=[None], y=[None], showlegend=False)]
+                errors = []
+        for trace in traces:
+            trace.update(showlegend=False)
+        for error in errors:
+            error.update(showlegend=False)
+        fig.add_traces(traces, rows=row, cols=1)
+        fig.add_traces(errors, rows=row, cols=1)
+    if gff is not None:
         if isinstance(gff, pd.DataFrame):
             gff = filter_gff_by_interval(gff, contig, wstart, wend)
             gff_traces, annotations, max_idx = _add_gff_entries(gff, gff_name, wstart, wend, type_colors, arrow_size)
@@ -451,7 +552,7 @@ def plot_precomputed_coverage(
     fig.update_xaxes(
         range=[wstart, wend],
         minallowed=[wstart, wend],
-        maxallowed=coverages[contig]["+"].shape[-1]
+        #maxallowed=coverages[contig]["+"].shape[-1]
     )
     if np.isnan(max_idx):
         fig.add_annotation(
@@ -464,6 +565,10 @@ def plot_precomputed_coverage(
         maxallowed=max_idx+0.5+1,
         showticklabels=False,
         row=2,
+    )
+    fig.update_yaxes(
+        title=dict(text=f"Average Read count<br>[kernel size {step}]", standoff=50),
+        row=2 if strand is None else 1
     )
     fig.update_layout(legend=dict(groupclick="toggleitem"))
     return fig
@@ -538,30 +643,6 @@ def plot_coverage(design, contig, start, stop, extend: int = 50, strand: str = N
 
     return fig
 
-
-def precompute_from_design(design):
-    coverage = {
-
-    }
-    m_idx = design["index"].max() + 1
-    for idx, row in design.iterrows():
-        file = row["File"]
-        index = row["index"]
-        pysam.index(file)
-        samfile = pysam.AlignmentFile(file, "rb")
-        for contig in samfile.references:
-            yp = samfile.count_coverage(contig=contig, read_callback=filter_strand("+"))
-            ym = samfile.count_coverage(contig=contig, read_callback=filter_strand("-"))
-            yp = np.asarray(yp).sum(axis=0)
-            ym = np.asarray(ym).sum(axis=0)
-            if "Size factors" in design.columns:
-                yp *= row["Size factors"]
-                ym *= row["Size factors"]
-            if contig not in coverage:
-                coverage[contig] = {"+": np.empty((m_idx, yp.shape[0])), "-": np.empty((m_idx, ym.shape[0]))}
-            coverage[contig]["+"][index] = yp
-            coverage[contig]["-"][index] = ym
-    return coverage
 
 if __name__ == '__main__':
 

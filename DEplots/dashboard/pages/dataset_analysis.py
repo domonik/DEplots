@@ -1,4 +1,4 @@
-from DEplots.volcano import volcano_from_deseq_result
+from DEplots.diffexp import volcano_from_deseq_result, ma_from_deseq_result
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
 from DEplots.qc import pheatmap, sample_pca
 import dash
@@ -340,7 +340,16 @@ def get_layout(dash_data):
                                     dbc.CardHeader(
                                         dbc.Row(
                                             [
-                                                dbc.Col(html.H5("DEseq Volcano"), width=6),
+                                                dbc.Col(html.H5("DEseq"), width=2),
+                                                dbc.Col(dcc.Dropdown(
+                                                    value="Volcano",
+                                                    options=["Volcano", "MA"],
+                                                    style={"width": "100%", "font-size": "1.25rem"},
+                                                    id="volcano-type-dd",
+                                                    clearable=False,
+
+                                                ), width=4, className="d-flex align-items-left ",
+                                                ),
                                                 dbc.Col(html.Span("Name Column"), width=3,
                                                         className="d-flex align-items-center justify-content-end"),
                                                 dbc.Col(dcc.Dropdown(
@@ -364,7 +373,7 @@ def get_layout(dash_data):
                                 ],
                                 className="shadow",
                             ),
-                            width=12, md=6
+                            width=12, lg=6, className="py-1"
                         ),
                         dbc.Col(
                             [
@@ -381,7 +390,7 @@ def get_layout(dash_data):
                                                         clearable=False,
 
 
-                                                    ), width=3, className="d-flex align-items-center ",
+                                                    ), width=2, className="d-flex align-items-center ",
                                                     ),
                                                     dbc.Col(html.H5("Enrichment"), width=3,
                                                             className="d-flex align-items-center justify-content-center"),
@@ -394,6 +403,23 @@ def get_layout(dash_data):
 
                                                     ), width=3, className="d-flex align-items-center",
                                                         style={"font-size": "1.25rem"}),
+                                                    dbc.Col(
+                                                        html.Span(
+                                                            [
+                                                                html.I(className="fas fa-xl fa-question-circle fa px-2",
+                                                                       id="filter-tip"),
+                                                                dbc.Tooltip(
+                                                                    "Clicking on the marker of a term will highlight the"
+                                                                    " genes belonging to this term in the Volcano or MA plot",
+                                                                    target="filter-tip"
+                                                                ),
+                                                            ],
+
+                                                        ),
+                                                        width=1,
+                                                        className="d-flex align-items-center justify-content-end"
+
+                                                    ),
                                                     dbc.Col(
                                                         dbc.Button(
                                                             "Reset Selection",
@@ -422,7 +448,7 @@ def get_layout(dash_data):
                                 ),
 
                             ],
-                            width=12, md=6
+                            width=12, lg=6, className="py-1"
                         )
                     ],
                     className="py-1"
@@ -788,35 +814,55 @@ def update_volcano_column_selections(comp, dataset_key, current_add_name):
     Output("volcano-graph", "figure"),
     Input('volcano-highlight-ids', 'data'),
     Input('add-name-dd', 'value'),
+    Input('volcano-type-dd', 'value'),
     State('dataset-dd', 'value'),
     State('comparison-dd', 'value'),
     State('enrich-term', 'data'),
     State("mode-switch", "value"),
 
 )
-def create_volcano(highlight_data, name_col, dataset_key, comp, enrich_term, switch):
+def create_volcano(highlight_data, name_col, volcano_type, dataset_key, comp, enrich_term, switch):
     highlight = {}
     for idx, (key, value) in enumerate(highlight_data.items()):
         highlight[key] = (DEFAULT_PLOTLY_COLORS[key], value)
     df = get_deseq_result(dataset_key, comp)
     config = DASH_DATA[0][dataset_key]["config"]
-
-    fig = volcano_from_deseq_result(
-        df,
-        highlight=highlight,
-        name_col=name_col,
-        lfc_cutoff=config["log2FCCutOff"],
-        padj_cutoff=config["pAdjCutOff"],
-        condition_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"],
-        base_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"],
-        highlight_up_color=UP_COLOR_LIGHT if switch else UP_COLOR_DARK,
-        highlight_down_color=DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK,
-        opacity=0.1 if switch else 0.25
-    )
+    if volcano_type == "Volcano":
+        fig = volcano_from_deseq_result(
+            df,
+            highlight=highlight,
+            name_col=name_col,
+            lfc_cutoff=config["log2FCCutOff"],
+            padj_cutoff=config["pAdjCutOff"],
+            condition_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"],
+            base_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"],
+            highlight_up_color=UP_COLOR_LIGHT if switch else UP_COLOR_DARK,
+            highlight_down_color=DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK,
+            opacity=0.1 if switch else 0.25
+        )
+    else:
+        fig = ma_from_deseq_result(
+            df,
+            name_col=name_col,
+            highlight=highlight,
+            lfc_cutoff=config["log2FCCutOff"],
+            padj_cutoff=config["pAdjCutOff"],
+            condition_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["condition"],
+            base_name=DASH_DATA[0][dataset_key]["comparisons"][comp]["baseline"],
+            highlight_up_color=UP_COLOR_LIGHT if switch else UP_COLOR_DARK,
+            highlight_down_color=DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK,
+        )
     if enrich_term:
-        print(enrich_term)
-        fig.update_traces(selector=dict(name='not-enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term))
-        fig.update_traces(selector=dict(name='enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term))
+        if volcano_type == "MA":
+            sigcolor = DEFAULT_PLOTLY_COLORS["placeholder"]
+            notsigcolor = "#00004a" if switch else "#f6f1e3"
+            sig_add = {"marker": dict(color=sigcolor)}
+            nsig_add = {"marker": dict(color=notsigcolor)}
+        else:
+            sig_add = {}
+            nsig_add = {}
+        fig.update_traces(selector=dict(name='not-enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term), **nsig_add)
+        fig.update_traces(selector=dict(name='enriched'), legendgroup=enrich_term, legendgrouptitle=dict(text=enrich_term), **sig_add)
     fig.update_traces(selector=dict(name='Selected'), legendgroup="Table", legendgrouptitle=dict(text="Table"))
     if not switch:
         fig.update_layout(DARK_LAYOUT)
@@ -877,10 +923,11 @@ def update_volcano_from_enrich(click_data, current_data, dataset_key, comp, enri
     Input("mode-switch", "value"),
     State("volcano-graph", "figure"),
     State("gsea-graph", "figure"),
+    State('volcano-type-dd', 'value'),
     prevent_initial_call='initial_duplicate'
 
 )
-def patch_all_figures_style(switch_value, f1, f2):
+def patch_all_figures_style(switch_value, f1, f2, volcano_type):
     upc = UP_COLOR_LIGHT if switch_value else UP_COLOR_DARK
     downc = DOWN_COLOR_LIGHT if switch_value else DOWN_COLOR_DARK
     font_color = "black" if switch_value else "white"
@@ -888,14 +935,18 @@ def patch_all_figures_style(switch_value, f1, f2):
     patched_volcano['layout']['font']['color'] = font_color
     patched_volcano['layout']['xaxis']['linecolor'] = font_color
     patched_volcano['layout']['yaxis']['linecolor'] = font_color
-    patched_volcano["layout"]["shapes"][0]["fillcolor"] = upc
-    patched_volcano["layout"]["shapes"][0]["opacity"] = 0.1 if switch_value else 0.25
-    patched_volcano["layout"]["annotations"][0]["font"]["color"] = upc
-    patched_volcano["layout"]['plot_bgcolor']= LAYOUT["plot_bgcolor"] if switch_value else DARK_LAYOUT["plot_bgcolor"]
 
-    patched_volcano["layout"]["shapes"][1]["fillcolor"] = downc
-    patched_volcano["layout"]["shapes"][1]["opacity"] = 0.1 if switch_value else 0.25
-    patched_volcano["layout"]["annotations"][1]["font"]["color"] = downc
+    patched_volcano["layout"]['plot_bgcolor']= LAYOUT["plot_bgcolor"] if switch_value else DARK_LAYOUT["plot_bgcolor"]
+    if volcano_type == "Volcano":
+        patched_volcano["layout"]["shapes"][0]["fillcolor"] = upc
+        patched_volcano["layout"]["shapes"][0]["opacity"] = 0.1 if switch_value else 0.25
+        patched_volcano["layout"]["annotations"][0]["font"]["color"] = upc
+        patched_volcano["layout"]["shapes"][1]["fillcolor"] = downc
+        patched_volcano["layout"]["shapes"][1]["opacity"] = 0.1 if switch_value else 0.25
+        patched_volcano["layout"]["annotations"][1]["font"]["color"] = downc
+    else:
+        patched_volcano["data"][1]["marker"]["color"] = downc
+        patched_volcano["data"][4]["marker"]["color"] = "#00004a" if switch_value else "#f6f1e3"
 
     return patched_volcano if f1 is not None else dash.no_update
 

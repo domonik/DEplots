@@ -70,6 +70,7 @@ ID_SPEC = {
     'transcript': ["ID", 'transcript_id', 'transcriptID'],
 }
 
+
 def read_gff_via_gffutils(file, dbname=None, fix=True):
     if dbname is None:
         dir = TemporaryDirectory()
@@ -97,6 +98,53 @@ def nearest_distance(i1, i2):
     # Case 3: If the intervals overlap
     else:
         return 0
+
+
+
+def optimize_gff_lines(gff: gffutils.FeatureDB):
+    genes = gff.execute(
+        """
+        SELECT f.*
+        FROM features f
+        LEFT JOIN relations r ON f.id = r.child
+        WHERE f.featuretype = 'gene' OR r.parent IS NULL
+        ORDER BY f.seqid, f.start, f.strand;
+        """
+    )
+    lines = []
+    mapping = {}
+    attributes = {}
+    old_seqid = None
+    for row in genes:
+        seq_id = row["seqid"]
+        if seq_id != old_seqid:
+            lines = []
+            old_seqid = seq_id
+        idx = row["id"]
+        if idx in mapping:
+            raise KeyError("Key in mapping already exists")
+        start, end = row['start'], row['end']
+        placed = False
+        keys = eval(row["attributes"]).keys()
+        for key in keys:
+            if key in attributes:
+                attributes[key] += 1
+            else: attributes[key] = 0
+
+
+        # Try to place the span in an existing line
+        for i, line_end in enumerate(lines):
+            if start > line_end:
+                mapping[idx] = i
+                lines[i] = end
+                placed = True
+                break
+        # If no suitable line was found, create a new line
+        if not placed:
+            mapping[idx] = len(lines)
+            lines.append(end)
+    sorted_keys = sorted(attributes, key=attributes.get, reverse=True)
+    return mapping, sorted_keys
 
 
 def fix_gff_db(dbfn: str):
