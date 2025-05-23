@@ -3,10 +3,13 @@ import os
 import dash
 from dash import Dash, html, dcc, clientside_callback, Input, Output, State, ALL, ClientsideFunction
 import dash_bootstrap_components as dbc
+import DEplots.dashboard
 
 FILEDIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(FILEDIR, "assets")
 assert os.path.exists(ASSETS_DIR)
+
+CONFIG = DEplots.dashboard.CONFIG
 
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 print("Defining APP")
@@ -119,6 +122,35 @@ def get_navbar():
     return navbar
 
 
+def _get_footer():
+    div = html.Footer(
+            dbc.Container(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Col(width=3),
+                            dbc.Col(width=3),
+                            dbc.Col(
+                                html.Ul(
+                                    [
+                                        html.Li(html.A(html.I(className="fa-brands fa-2xl fa-github"), target="_blank", href="https://github.com/domonik/DEplots", className="text-light")),
+                                        html.Li(html.A(html.I(className="fa-solid fa-2xl fa-envelope"), target="_blank", href=f"mailto:{CONFIG['email']}", className="text-light")),
+                                    ],
+                                    className="icon-list d-flex align-items-end justify-content-end text-light"
+                                ),
+                                width=3,
+                                align="end"
+                            ),
+                        ],
+                        className="w-100 py-4", justify="between"
+                    )
+                ],
+                fluid=True
+            ),
+            className="ufr-navbar text-light mt-4", style={"z-index": "20"}
+        )
+    return div
+
 def get_layout():
     layout = html.Div(
         [
@@ -129,7 +161,8 @@ def get_layout():
                 dash.page_container,
                 fluid=True,
                 style={"padding-top": "65px"}
-            )
+            ),
+            _get_footer()
         ],
     )
     return layout

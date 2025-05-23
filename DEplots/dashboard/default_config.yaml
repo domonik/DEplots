@@ -9,7 +9,4 @@ add_data: False
 
 name_mapping: False
 
-coverage:
-  design:
-  precomputed_file:
-  gff:
+email: "rabsch@informatik.uni-freiburg.de"

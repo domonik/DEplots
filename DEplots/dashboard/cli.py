@@ -10,7 +10,7 @@ def cli_wrapper(
         host: str = "127.0.0.1",
         processes: int = 1
 ):
-    DEplots.dashboard.DASH_DATA = get_data(config_file, run_dir)
+    DEplots.dashboard.DASH_DATA, DEplots.dashboard.CONFIG = get_data(config_file, run_dir)
     from DEplots.dashboard.app import app, get_layout
 
     app.layout = get_layout()

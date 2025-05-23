@@ -492,33 +492,7 @@ def get_layout(dash_data):
             fluid=True,
             className="dbc",
         ),
-        html.Footer(
-            dbc.Container(
-                [
-                    dbc.Row(
-                        [
-                            dbc.Col(width=3),
-                            dbc.Col(width=3),
-                            dbc.Col(
-                                html.Ul(
-                                    [
-                                        html.Li(html.A(html.I(className="fa-brands fa-2xl fa-github"), target="_blank", href="https://github.com/domonik/DEplots", className="text-light")),
-                                        html.Li(html.A(html.I(className="fa-solid fa-2xl fa-envelope"), target="_blank", href="mailto:rabsch@informatik.uni-freiburg.de", className="text-light")),
-                                        html.Li(html.A(html.I(className="fa-brands fa-2xl fa-linkedin"), target="_blank", href="https://www.linkedin.com/in/dominik-rabsch/", className="text-light"))
-                                    ],
-                                    className="icon-list d-flex align-items-end justify-content-end text-light"
-                                ),
-                                width=3,
-                                align="end"
-                            ),
-                        ],
-                        className="w-100 py-4", justify="between"
-                    )
-                ],
-                fluid=True
-            ),
-            className="ufr-navbar text-light mt-4", style={"z-index": "20"}
-        )
+
     ])
     return layout
 

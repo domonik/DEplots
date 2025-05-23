@@ -7,23 +7,50 @@ from plotly.subplots import make_subplots
 import numpy as np
 import plotly.express as px
 
+available_symbols = [
+    # Solid base symbols
+    "circle", "square", "diamond", "cross", "x",
+    "triangle-up", "triangle-down", "triangle-left", "triangle-right",
+    "star", "hexagon", "pentagon", "hourglass", "bowtie",
+    "asterisk", "hash", "y", "line-ew", "line-ns",
+
+    # Open variants
+    "circle-open", "square-open", "diamond-open", "cross-open", "x-open",
+    "triangle-up-open", "triangle-down-open", "triangle-left-open", "triangle-right-open",
+    "star-open", "hexagon-open", "pentagon-open",
+
+    # Dot variants
+    "circle-dot", "square-dot", "diamond-dot", "cross-dot", "x-dot",
+
+    # Open-dot variants
+    "circle-open-dot", "square-open-dot", "diamond-open-dot", "cross-open-dot", "x-open-dot"
+]
 
 def sample_pca(df, colors = None):
     group_cols = [col for col in df.columns if col not in ["PC1", "PC2", "group", "name"]]
     if len(group_cols) == 2:
-        color_column = group_cols[0]
-        shape_col = group_cols[1]
+        color_column = group_cols[1]
+        shape_col = group_cols[0]
 
     else:
-        color_column = "group"
-        shape_col = None
+        color_column = group_cols[-1]
+        shape_col = "group"
     if colors:
         unique_groups = df[color_column].unique().tolist()
         assert len(unique_groups) <= len(colors), "Not enough colors specified. there are more groups than colors"
         custom_colors = {group: colors[i] for i, group in enumerate(unique_groups)}
     else:
         custom_colors = None
-    fig = px.scatter(df, y="PC2", x="PC1", color=color_column, symbol=shape_col, hover_data=["name"], color_discrete_map=custom_colors)
+
+    unique_shapes = df[shape_col].unique()
+
+    # Check if enough symbols are available
+    if len(unique_shapes) > len(available_symbols):
+        raise ValueError(f"Not enough unique symbols for all shape categories. "
+                         f"{len(unique_shapes)} needed, but only {len(available_symbols)} available.")
+    symbol_map = {val: available_symbols[i] for i, val in enumerate(unique_shapes)}
+
+    fig = px.scatter(df, y="PC2", x="PC1", color=color_column, symbol=shape_col, hover_data=["name"], color_discrete_map=custom_colors, symbol_map=symbol_map,)
     return fig
 
 

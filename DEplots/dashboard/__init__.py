@@ -18,7 +18,7 @@ def get_data(config_file: str = None, run_dir: str = None,):
 
     if run_dir:
         config["run_dir"] = run_dir
-    return read_files(config)
+    return read_files(config), config
 
 
 def read_files(config):
@@ -179,3 +179,4 @@ COVERAGE_DESIGN = None
 GFF = None
 LINE_MAPPING = None
 GFF_ATTRIBUTES = None
+CONFIG = None

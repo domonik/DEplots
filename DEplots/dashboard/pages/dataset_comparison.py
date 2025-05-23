@@ -225,7 +225,22 @@ def get_line_plot_card():
                 dbc.CardHeader(
                     dbc.Row(
                         [
-                            dbc.Col(html.H5("Single Gene Behaviour"), width=6),
+                            dbc.Col(
+                                [
+                                    html.H5("Single Gene Behaviour", style={"display": "inline",} ),
+                                    html.Span(
+                                        [
+                                            html.I(className="fas fa-xl fa-question-circle fa px-2",
+                                                   id="behav-tip"),
+                                            dbc.Tooltip(
+                                                "Mark checkboxes in the table below to show the fold change of the "
+                                                "gene in different datasets",
+                                                target="behav-tip"),
+                                        ],
+
+                                    ),
+                                 ], width=6 ,className="d-flex align-items-center"),
+
                             dbc.Col(html.Span("Name Column"), width=3,
                                     className="d-flex align-items-center justify-content-end"),
                             dbc.Col(dcc.Dropdown(
