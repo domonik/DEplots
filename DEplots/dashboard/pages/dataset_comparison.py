@@ -4,7 +4,7 @@ from dash import Input, Output, State, html, dcc, callback, dash_table
 import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 from pandas.api.types import is_numeric_dtype
-from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_deseq
+from DEplots.runComparison import plot_gene_among_conditions, upset_plot_from_deseq, compare_two_datasets
 from DEplots.dashboard import DEFAULT_PLOTLY_COLORS, DEFAULT_PLOTLY_COLORS_LIST, LAYOUT, DARK_LAYOUT, UP_COLOR_LIGHT, \
     UP_COLOR_DARK, DOWN_COLOR_LIGHT, DOWN_COLOR_DARK, DASH_DATA
 from DEplots.enrichment import enrichment_plot_from_cp_table, empty_figure, plot_gsea
@@ -265,6 +265,56 @@ def get_line_plot_card():
     )
     return gsea_box
 
+def get_compare_two_plot_card():
+    gsea_box = dbc.Col(
+        dbc.Card(
+            [
+                dbc.CardHeader(
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.H5("Two Datasets Comparison", style={"display": "inline",} ),
+                                    html.Span(
+                                        [
+                                            html.I(className="fas fa-xl fa-question-circle fa px-2",
+                                                   id="two-tip"),
+                                            dbc.Tooltip(
+                                                "Select two datasets to display fold changes of each gene in either."
+                                                " The hovertext is influenced by the Name Column selected in the first plot",
+                                                target="two-tip"),
+                                        ],
+
+                                    ),
+                                 ], width=6, className="d-flex align-items-center"),
+
+                            dbc.Col(
+                                dcc.Dropdown(
+                                    id="two-datasets-to-compare",
+
+                                    clearable=True,
+                                    multi=True,
+                                    persistence=True,
+                                    persistence_type="session",
+
+                                ),
+                                width=6
+                            ),
+                        ]
+
+                    ),
+
+                ),
+                dbc.Col(dcc.Graph(id="two-compare-graph", ), width=12,
+
+                        ),
+
+            ],
+            className="shadow",
+        ),
+        width=12
+    )
+    return gsea_box
 
 def get_upset_card(updown):
     gsea_box = dbc.Col(
@@ -330,7 +380,15 @@ def get_layout(dash_data):
                         className="py-1"
 
                     ),
+                    dbc.Row(
+                        [
+                            get_compare_two_plot_card(),
 
+                        ],
+
+                        className="py-1"
+
+                    ),
 
                 ],
                 fluid=True,
@@ -416,6 +474,25 @@ def update_name_selection(comp):
     tableoptions = [condition, baseline]
     return options, options[0], f"Upset plot - {baseline}", f"Upset plot - {condition}", tableoptions, None
 
+
+@callback(
+    Output("two-datasets-to-compare", "options"),
+    Output("two-datasets-to-compare", "value"),
+    Input("dataset-compare-dd", "value"),
+    State("two-datasets-to-compare", "value"),
+
+)
+def update_compare_two_selection(datasets, selected_sets):
+    if datasets is None:
+        return dash.no_update
+    if len(datasets) == 2:
+        selected = datasets
+    else:
+        selected = None
+        if selected_sets is not None:
+            selected = selected_sets if all(ds in datasets for ds in selected_sets) else None
+
+    return datasets, selected
 
 @callback(
     Output("filter-table-sets", "options"),
@@ -627,6 +704,28 @@ def update_selectable_datasets(comp, dd_state):
         selected = sets
     return sets, selected
 
+@callback(
+    Output("two-compare-graph", "figure"),
+    Input("two-datasets-to-compare", "value"),
+    Input("mode-switch", "value"),
+    Input("plot-hover-name-dd", "value"),
+
+    State("comparison-hash-dd", "value"),
+
+)
+def update_compare_two_plot(two_datasets, switch, legend_name, comp):
+    if two_datasets is None or len(two_datasets) != 2:
+        fig = empty_figure("Select two datasets")
+        return fig
+    else:
+        df = DASH_DATA[1][comp]
+        legend_name = tuple(legend_name.split(" - "))
+        fig = compare_two_datasets(df, two_datasets, name_col=legend_name, color=DEFAULT_PLOTLY_COLORS_LIST[1])
+    if not switch:
+        fig.update_layout(DARK_LAYOUT)
+    else:
+        fig.update_layout(LAYOUT)
+    return fig
 
 
 @callback(

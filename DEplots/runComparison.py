@@ -7,6 +7,26 @@ from typing import Tuple, List
 import numpy as np
 import itertools
 
+def compare_two_datasets(df, runs, name_col: Tuple = None, color = px.colors.DEFAULT_PLOTLY_COLORS[0]):
+    names = df.index if not name_col else df.loc[:, name_col]
+    padj1 = df[runs[0], "padj"]
+    padj2 = df[runs[1], "padj"]
+    hovertext = [
+        f"{name}<br>{runs[0]} padj: {p1:.2e}<br>{runs[1]} padj: {p2:.2e}"
+        for name, p1, p2 in zip(names, padj1, padj2)
+    ]
+    fig = go.Figure(
+        go.Scatter(
+            x=df[runs[0], "log2FoldChange"],
+            y=df[runs[1], "log2FoldChange"],
+            mode="markers",
+            marker=dict(color=color),
+            hovertext=hovertext
+        )
+    )
+    fig.update_xaxes(title=f"{runs[0]}<br>log<sub>2</sub>(FoldChange)")
+    fig.update_yaxes(title=f"{runs[1]}<br>log<sub>2</sub>(FoldChange)")
+    return fig
 
 
 def plot_gene_among_conditions(df, genes, name_col: Tuple = None, runs: List = None, colors = px.colors.DEFAULT_PLOTLY_COLORS, **kwargs):
