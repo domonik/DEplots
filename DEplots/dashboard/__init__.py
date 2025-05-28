@@ -1,11 +1,7 @@
-import gffutils
 import yaml
 import os
 import pandas as pd
 from plotly import express as px
-import pickle
-from DEplots.readCount import precompute_from_design
-from DEplots.gff_helper import read_gff3, read_gff_via_gffutils
 
 DIRPATH = os.path.dirname(os.path.abspath(__file__))
 

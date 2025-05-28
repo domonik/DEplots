@@ -30,8 +30,6 @@ setup(
         "dash>=2.5",
         "dash_bootstrap_components",
         "pyYAML",
-        "gffutils",
-        "pysam"
     ],
     scripts=[
         "DEplots/executables.py",
