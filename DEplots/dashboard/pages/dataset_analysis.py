@@ -323,6 +323,7 @@ def _get_qc_card():
 
 
 def get_layout(dash_data):
+    enrich_keys = list(list(list(dash_data.values())[0]["comparisons"].values())[0]["enrich"].keys())
     layout = html.Div([
         dcc.Store(data={}, id="volcano-highlight-ids"),
         dcc.Store(id="enrich-term"),
@@ -366,9 +367,11 @@ def get_layout(dash_data):
                                         ),
 
                                     ),
-                                    dbc.Col(dcc.Graph(id="volcano-graph", ), width=12,
+                                    dcc.Loading(
+                                        dbc.Col(dcc.Graph(id="volcano-graph", ), width=12, ),
+                                        color=DEFAULT_PLOTLY_COLORS_LIST[1]
 
-                                            ),
+                                    ),
 
                                 ],
                                 className="shadow",
@@ -383,14 +386,14 @@ def get_layout(dash_data):
                                             dbc.Row(
                                                 [
                                                     dbc.Col(dcc.Dropdown(
-                                                        value="GO",
-                                                        options=["GO", "KEGG"],
+                                                        value=enrich_keys[0],
+                                                        options=enrich_keys,
                                                         style={"width": "100%", "font-size": "1.25rem"},
                                                         id="enrich-type-dd",
                                                         clearable=False,
 
 
-                                                    ), width=2, className="d-flex align-items-center ",
+                                                    ), width=3, className="d-flex align-items-center ",
                                                     ),
                                                     dbc.Col(html.H5("Enrichment"), width=3,
                                                             className="d-flex align-items-center justify-content-center"),
@@ -401,7 +404,7 @@ def get_layout(dash_data):
                                                         id="enrich-updown-dd",
                                                         clearable=False
 
-                                                    ), width=3, className="d-flex align-items-center",
+                                                    ), width=2, className="d-flex align-items-center",
                                                         style={"font-size": "1.25rem"}),
                                                     dbc.Col(
                                                         html.Span(
@@ -438,7 +441,17 @@ def get_layout(dash_data):
                                         ),
 
                                         dbc.Col(
-                                            dcc.Graph(id="enrichment-graph", ), width=12,
+                                            dcc.Loading(
+
+                                                dcc.Graph(id="enrichment-graph", ),
+                                                color=DEFAULT_PLOTLY_COLORS_LIST[1]
+
+                                            ),
+                                            width = 12,
+                                            style={
+                                                'height': '450px',  # Set maximum height
+                                                'overflowY': 'scroll',  # Enable vertical scroll
+                                            }
 
                                         ),
 
@@ -665,13 +678,16 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
     cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
     if df is not None:
         fig = enrichment_plot_from_cp_table(df, colorscale=[cu, cd])
+        height = max(fig.layout.yaxis.range[1] * 20, 450)
+        fig.update_layout(
+            height=height
+        )
     else:
         fig = empty_figure("No enrichment file found for dataset")
     if not switch:
         fig.update_layout(DARK_LAYOUT)
     else:
         fig.update_layout(LAYOUT)
-
     return fig
 
 
@@ -728,8 +744,8 @@ def create_qc(dataset_key, switch):
     cu = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
     cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
     if df is not None:
-        colors = [cu, cd]
         colors = DEFAULT_PLOTLY_COLORS_LIST
+        colors[0:2] = [cu, cd]
         fig = sample_pca(df, colors=colors)
         fig.update_traces(marker=dict(size=10))
     else:

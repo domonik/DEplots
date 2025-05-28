@@ -47,6 +47,11 @@ def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
     def df_div(l):
         return int(l[0]) / int(l[1])
     df["Gene Ratio"] = df["GeneRatio"].str.split("/").apply(df_div)
+    if "Cluster" in df:
+        neg_df = df[df["Cluster"] == -1]
+        df = df[df['Cluster'] != -1]
+        df = df.sort_values("p.adjust").drop_duplicates("Cluster")
+        df = pd.concat([df, neg_df], ignore_index=True)
     if len(df) == 0:
         return empty_figure("Nothing enriched")
     if mode == "scatter":
@@ -88,7 +93,8 @@ def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
             ticks="outside"
         ),
         legend=dict(x=1),
-        yaxis=dict(tickmode="linear", type="category", dtick=1)
+        yaxis=dict(tickmode="linear", type="category", dtick=1),
+        height=1000,
     )
     return fig
 

@@ -89,7 +89,7 @@ def read_files(config):
                 dash_data[name]["comparisons"][comp_str]["condition"] = cname
                 dash_data[name]["comparisons"][comp_str]["baseline"] = bname
 
-                for enrich in ["GO", "KEGG"]:
+                for enrich in ["ClusteredGO", "GO", "KEGG"]:
                     enrich_file_up = os.path.join(dirname,
                                                   f"PipelineData/Enrichment/{enrich}Enrichment_up_c{condition}_vs_b{baseline}.tsv")
                     enrich_file_down = os.path.join(dirname,

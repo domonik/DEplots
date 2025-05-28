@@ -28,4 +28,5 @@ def _cli_wrapper(args):
 if __name__ == '__main__':
     config_file = "/home/rabsch/PythonProjects/DEPlots/testData/config.yaml"
     rd = "/home/rabsch/PythonProjects/RlocSeq/Pipeline/RUNS/"
+    #rd = "/home/rabsch/PythonProjects/SynDESeq2/RUNS/"
     cli_wrapper(config_file=config_file, run_dir=rd, debug=True, processes=3)
