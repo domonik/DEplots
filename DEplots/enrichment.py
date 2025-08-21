@@ -5,7 +5,6 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 
-
 def empty_figure(annotation: str = None):
     fig = go.Figure()
     fig.update_yaxes(showticklabels=False, showgrid=False)
@@ -42,8 +41,18 @@ def empty_figure(annotation: str = None):
     return fig
 
 
-
 def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
+    """ Creates a plotly Figure from a ClusterProfiler Enrichment table
+
+    Args:
+        df (pd.Dataframe): ClusterProfiler Enrichment table in form of a pandas dataframe.
+        mode (str): Either scatter or bar.
+        colorscale (list(str)): List of colors used to generate the colorscale mapping the pvalue
+
+    Returns:
+        plotly.graph_objects.Figure:
+
+    """
     def df_div(l):
         return int(l[0]) / int(l[1])
     df["Gene Ratio"] = df["GeneRatio"].str.split("/").apply(df_div)
@@ -110,6 +119,24 @@ def plot_gsea(
         **kwargs
 
 ):
+    """ Creates a running Sum plotly Figure from a ClusterProfiler GSEA output
+
+    .. note::
+        this needs the info obtained via gsInfo from the GSEA object. Only the GSEA table is not sufficient.
+
+    Args:
+        df (pd.Dataframe): ClusterProfiler GSEA table in form of a pandas dataframe.
+        info (pd.Dataframe): ClusterProfiler table that was obtained using GSinfo in form of a pandas dataframe.
+        descs list(str): Descriptions from the df to display in the plot.
+        show_zero_lfc (bool): Creates a vertical line at the rank with a zero log Fold Change
+        condition_name: Summary term for genes that have a positive log fold change.
+        base_name: Summary term  for genes that have a negative log fold change.
+        gene_list_name (str): How to name the ordering of the GSEA
+
+    Returns:
+        plotly.graph_objects.Figure:
+
+    """
     if gene_list_name:
         df = df.rename({"geneList": gene_list_name}, axis=1)
     else:

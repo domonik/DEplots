@@ -27,6 +27,16 @@ available_symbols = [
 ]
 
 def sample_pca(df, colors = None):
+    """ Creates a plotly PCA from the DESeq PCA Table
+
+    Args:
+        df (pd.DataFrame): PCA Table from DESeq loaded as a pandas dataframe.
+        colors (colors): Colors used to highlight different sample groups.
+
+    Returns:
+        go.Figure:
+
+    """
     group_cols = [col for col in df.columns if col not in ["PC1", "PC2", "group", "name"]]
     if len(group_cols) == 2:
         color_column = group_cols[1]
@@ -57,6 +67,17 @@ def sample_pca(df, colors = None):
 
 
 def pheatmap(df, colorscale = None, tree_color: str = "black", **kwargs):
+    """ Mirrors Rs pheatmap function that produces a clustered heatmap
+
+    Args:
+        df (pd.DataFrame): pandas dataframe of the sample wise correlations
+        colorscale (list(str)): List of CSS colors used to create a colorscale for the correlation heatmap
+        tree_color (str): CSS color used for the tree beside the heatmap
+        **kwargs: passed to plotly make_subplots function
+
+    Returns:
+        go.Figure
+    """
     if df.iloc[0, 0] == 1:
         matrix = 1 - df.values
     else:

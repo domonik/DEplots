@@ -21,7 +21,7 @@ setup(
     long_description_content_type="text/markdown",
     include_package_data=True,
     package_data={
-        "DEplots.dashboard": ["assets/*", "default_config.yaml"],
+        "DEplots.dashboard": ["assets/*", "default_config.yaml", "defaultWelcome.md"],
     },
     install_requires=[
         "numpy",
@@ -30,6 +30,7 @@ setup(
         "dash>=2.5",
         "dash_bootstrap_components",
         "pyYAML",
+        "scipy"
     ],
     scripts=[
         "DEplots/executables.py",
