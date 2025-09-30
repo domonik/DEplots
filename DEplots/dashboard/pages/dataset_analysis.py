@@ -676,14 +676,14 @@ def create_enrich(dataset_key, comp, enrich_type, updown, switch):
     df = get_enrich_result(dataset_key, comp, enrich_type, updown)
     cu = UP_COLOR_LIGHT if switch else UP_COLOR_DARK
     cd = DOWN_COLOR_LIGHT if switch else DOWN_COLOR_DARK
-    if df is not None:
+    if df is not None and df.shape[0]:
         fig = enrichment_plot_from_cp_table(df, colorscale=[cu, cd])
         height = max(fig.layout.yaxis.range[1] * 20, 450)
         fig.update_layout(
             height=height
         )
     else:
-        fig = empty_figure("No enrichment file found for dataset")
+        fig = empty_figure("No enrichment file found or nothing enriched.")
     if not switch:
         fig.update_layout(DARK_LAYOUT)
     else:
