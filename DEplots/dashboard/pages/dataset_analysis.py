@@ -620,7 +620,7 @@ def update_table_from_dataset(dataset_key, comp):
     Input('dataset-dd', 'value'),
     Input('comparison-dd', 'value'),
 )
-def update_table_from_dataset(dataset_key, comp):
+def update_gsea_table_from_dataset(dataset_key, comp):
     df, _ = get_gsea_result(dataset_key, comp)
     columns = []
     for i in df.columns:
