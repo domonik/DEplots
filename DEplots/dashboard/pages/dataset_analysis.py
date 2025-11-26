@@ -19,6 +19,8 @@ def get_deseq_result(dataset_key, comp):
     idx = pd.IndexSlice
     df1_columns = df.loc[:, idx[["Name",  dataset_key, "Additional Data"], :]]
     df1_columns.columns = df1_columns.columns.droplevel(0)
+    if "Gene" in df1_columns.columns:
+        df1_columns = df1_columns[["Name", "Gene"] + [col for col in df1_columns.columns[1:] if col != "Gene"]]
     return df1_columns
 
 
