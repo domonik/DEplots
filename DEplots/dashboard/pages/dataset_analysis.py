@@ -17,7 +17,7 @@ dash.register_page(__name__, path='/analysis', name="Visualization")
 def get_deseq_result(dataset_key, comp):
     df = DASH_DATA[1][comp]
     idx = pd.IndexSlice
-    df1_columns = df.loc[:, idx[["Name", "Additional Data", dataset_key], :]]
+    df1_columns = df.loc[:, idx[["Name",  dataset_key, "Additional Data"], :]]
     df1_columns.columns = df1_columns.columns.droplevel(0)
     return df1_columns
 

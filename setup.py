@@ -2,7 +2,7 @@ from setuptools import setup, find_packages, Extension
 
 
 NAME = "DEPlots"
-DESCRIPTION = "Package for identification of RNA dependent Proteins from mass spec data "
+DESCRIPTION = "Package for plotting differential expression data"
 
 LONGDESC = DESCRIPTION #Todo: write Readme
 
