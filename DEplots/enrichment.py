@@ -59,7 +59,7 @@ def enrichment_plot_from_cp_table(df, mode="scatter", colorscale = None):
     if "Cluster" in df:
         neg_df = df[df["Cluster"] == -1]
         df = df[df['Cluster'] != -1]
-        df = df.sort_values("p.adjust").drop_duplicates("Cluster")
+        df = df.sort_values("p.adjust").drop_duplicates(["ONTOLOGY", "Cluster"])
         df = pd.concat([df, neg_df], ignore_index=True)
     if len(df) == 0:
         return empty_figure("Nothing enriched")
