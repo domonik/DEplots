@@ -23,4 +23,8 @@ dash_bootstrap_components
 pyYAML
 ```
 
+## License
+
+DEplots is licensed under the MIT License. See [LICENSE](LICENSE).
+
 
